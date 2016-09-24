@@ -675,7 +675,7 @@ def saveAllNicePlots(allChans):
 
     #get the ANITA1 transfer function
     a1X,a1Y = importANITA1()
-    a1Y *= 1000 #V to mV (and a nudge upwards for some reason)
+    a1Y *= 1000 #V to mV (and a nudge upwards for some reason) (also is it phase flipped(or maybe I am)?)
     
     a1F,a1FFT = tf.genFFT(a1X,a1Y)
 
@@ -807,7 +807,7 @@ def plotCompare(allChans):
 ###############################################################################################################
 #Stupid test things
 
-
+##########################
 def phaseShifts(waveform):
     """
     The group delay and magnitude are what is effected by the signal chain and antennas, the absolute phase is not
@@ -838,7 +838,7 @@ def phaseShifts(waveform):
     return shifts[np.argmax(shiftedArrayMaxes)]
         
 
-
+#########################
 def importAndPlotSurfs():
     """
     The surf waveforms are getting all cut off at the end of the window(because of the ROOT correlation code)
