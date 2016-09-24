@@ -103,7 +103,7 @@ int findCalRun(string name) {
 
   int runNum = -1;
   ifstream runLogFile;
-  runLogFile.open("runLog66dB.txt");
+  runLogFile.open("runLog56dB.txt");
   if (!runLogFile) cout << "didn't open file?" << endl;
 
   int pos = 0;
@@ -305,9 +305,8 @@ TGraph* surfParseAndAverage(string antName) {
   corrPattern4->SetName("corrPattern4");
   corrPattern4->SetTitle("corrPattern4");
 
-  //write
+  //write the movie of the correlation, this takes forever (and is super inefficient) so you should probably leave it commented most of the time
   for (int i=2; i<entryAveraged; i++) {
-    cout << i << endl;
     TGraph *tempGraph = FFTtools::correlateAndAverage(i,waveGraphs);
     name.str("");
     name << "averagedGraph" << i;
