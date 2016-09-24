@@ -128,6 +128,57 @@ int findCalRun(string name) {
 
 
 
+void surfInfoMaker(string antName, int numGraphs,TGraph **waveGraphs) {
+
+  stringstream name;
+
+  // Save a bunch of interesting things about generating the surf waveform (since it messes up so often)
+  name.str("");
+  name << "waveforms/" << antName << "_surfInfo.root";
+  TFile *testFile = TFile::Open(name.str().c_str(),"recreate");
+
+  //Save a copy of the histogram
+  TH1D *hist = brotterTools::correlationDistribution(numGraphs,waveGraphs);
+  TGraph *corrPattern = brotterTools::correlationPattern(numGraphs,waveGraphs);
+  corrPattern->SetName("corrPattern1");
+  corrPattern->SetTitle("corrPattern1");
+
+  TGraph *corrPattern2 = brotterTools::correlationPattern(numGraphs,waveGraphs);
+  corrPattern2->SetName("corrPattern2");
+  corrPattern2->SetTitle("corrPattern2");
+
+  TGraph *corrPattern3 = brotterTools::correlationPattern(numGraphs,waveGraphs);
+  corrPattern3->SetName("corrPattern3");
+  corrPattern3->SetTitle("corrPattern3");
+
+  TGraph *corrPattern4 = brotterTools::correlationPattern(numGraphs,waveGraphs);
+  corrPattern4->SetName("corrPattern4");
+  corrPattern4->SetTitle("corrPattern4");
+
+  //write the movie of the correlation, this takes forever (and is super inefficient) so you should probably leave it commented most of the time
+  for (int i=2; i<numGraphs; i++) {
+    TGraph *tempGraph = FFTtools::correlateAndAverage(i,waveGraphs);
+    name.str("");
+    name << "averagedGraph" << i;
+    tempGraph->SetName(name.str().c_str());
+    tempGraph->Write();
+    delete(tempGraph);
+  }
+  hist->Write();
+  corrPattern->Write();
+  corrPattern2->Write();
+  corrPattern3->Write();
+  corrPattern4->Write();
+  //  averagedFFT->Write();
+
+  testFile->Close();
+
+  return;
+}
+
+
+
+
 TGraph* surfParseAndAverage(string antName) {
   /*
     Raw: 256ish samples @2.6GS/s (.0385ns)
@@ -278,52 +329,10 @@ TGraph* surfParseAndAverage(string antName) {
   avgWaveGraph->SetLineColor(kRed);
   avgWaveGraph->SetMarkerColor(kRed);
   
-
-
-
-
-  // Save a bunch of interesting things about generating the surf waveform (since it messes up so often)
-  name.str("");
-  name << "waveforms/" << antName << "_surfInfo.root";
-  TFile *testFile = TFile::Open(name.str().c_str(),"recreate");
-
-  //Save a copy of the histogram
-  TH1D *hist = brotterTools::correlationDistribution(entryAveraged,waveGraphs);
-  TGraph *corrPattern = brotterTools::correlationPattern(entryAveraged,waveGraphs);
-  corrPattern->SetName("corrPattern1");
-  corrPattern->SetTitle("corrPattern1");
-
-  TGraph *corrPattern2 = brotterTools::correlationPattern(entryAveraged,waveGraphs);
-  corrPattern2->SetName("corrPattern2");
-  corrPattern2->SetTitle("corrPattern2");
-
-  TGraph *corrPattern3 = brotterTools::correlationPattern(entryAveraged,waveGraphs);
-  corrPattern3->SetName("corrPattern3");
-  corrPattern3->SetTitle("corrPattern3");
-
-  TGraph *corrPattern4 = brotterTools::correlationPattern(entryAveraged,waveGraphs);
-  corrPattern4->SetName("corrPattern4");
-  corrPattern4->SetTitle("corrPattern4");
-
-  //write the movie of the correlation, this takes forever (and is super inefficient) so you should probably leave it commented most of the time
-  for (int i=2; i<entryAveraged; i++) {
-    TGraph *tempGraph = FFTtools::correlateAndAverage(i,waveGraphs);
-    name.str("");
-    name << "averagedGraph" << i;
-    tempGraph->SetName(name.str().c_str());
-    tempGraph->Write();
-    delete(tempGraph);
-  }
-  hist->Write();
-  corrPattern->Write();
-  corrPattern2->Write();
-  corrPattern3->Write();
-  corrPattern4->Write();
-  //  averagedFFT->Write();
-
-  testFile->Close();
-
   
+  //if you want to save the surf info (about correlating and averaging mostly)
+  //  surfInfoMaker(antName,entryAveraged,waveGraphs);
+
   //memory management!
   for (int i=0; i<entryAveraged; i++) {
     delete(waveGraphs[i]); 
@@ -391,11 +400,19 @@ int main(int argc, char** argv) {
   TFile *rootFile = TFile::Open(fileName.str().c_str(),"recreate");
   waveGraphSurf->Write();
   waveGraphScope->Write();
+  rootFile->Close();
+
+
+  delete waveGraphScope;
+  delete waveGraphSurf;
 
   cout << "Done! :)" << endl;
 
   
 
-  return -1;
+  return 1;
 }
+
+
+
 
