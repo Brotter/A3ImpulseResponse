@@ -11,6 +11,8 @@ import tfUtils as tf
 
 import cmath #for complex sqrt
 
+import time #for drawing with a pause
+
 try:
     import seaborn as sns #just a pretty plotting package, it isn't important
 except:
@@ -835,3 +837,41 @@ def phaseShifts(waveform):
     
     return shifts[np.argmax(shiftedArrayMaxes)]
         
+
+
+def importAndPlotSurfs():
+    """
+    The surf waveforms are getting all cut off at the end of the window(because of the ROOT correlation code)
+    I gotta see how often it happens and ensure that it DOESN'T because it makes the TF wrong if the pulse occurs early in the window
+    """
+
+    chans = np.loadtxt("chanList.txt",dtype=str)
+
+
+    fig,ax = lab.subplots(6,8)
+    fig2,ax2 = lab.subplots(6,8)
+
+    index=0
+    for chan in chans:
+        try:
+            x,y,f,fft = importSurf(chan)
+        except:
+            print chan+" missing"
+
+        if index<48:
+            ax[index/8][index%8].plot(x,y)
+            ax[index/8][index%8].set_title(chan)
+            ax[index/8][index%8].set_xticklabels("")
+            ax[index/8][index%8].set_yticklabels("")
+        else:
+            ax2[(index-48)/8][index%8].plot(x,y)
+            ax2[(index-48)/8][index%8].set_title(chan)
+            ax2[(index-48)/8][index%8].set_xticklabels("")
+            ax2[(index-48)/8][index%8].set_yticklabels("")
+            
+        index += 1
+
+    fig.show()
+    fig2.show()
+
+    return

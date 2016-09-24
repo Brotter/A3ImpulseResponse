@@ -232,7 +232,8 @@ TGraph* surfParseAndAverage(string antName) {
     eventTree->GetEntry(entry);
 
     
-
+    //I only want to look at one lab chip since they can all be different!
+    // continue will make it skip everything after this point if it isn't satisfied
     if (event->getLabChip(chanIndex) != 0) continue;
 
     //get calibrated event
@@ -240,35 +241,18 @@ TGraph* surfParseAndAverage(string antName) {
 
     //Get calibrated waveform for the channel of interest
     TGraph *calibGraph = useful->getGraph(ring,phi-1,pol);
+    delete(useful);
     //upsample to 10GS/s (0.1ns bins)
     TGraph *interpGraph = FFTtools::getInterpolatedGraph(calibGraph,0.1);
+    delete(calibGraph);
     //zero pad to 1024 bins
     TGraph *finalGraph = brotterTools::zeroPadToLength(interpGraph,1024);
+    delete(interpGraph);
 
-
-    //to compare avg(fft(waveform)) vs fft(avg(waveform)), They are different!
-    /*
-    TGraph *tempFFT = FFTtools::makePowerSpectrumMilliVoltsNanoSecondsdB(finalGraph);
-    if (averagedFFT->GetN() == 0) {
-      for (int i=0; i<tempFFT->GetN(); i++) {
-	averagedFFT->SetPoint(i,tempFFT->GetX()[i],tempFFT->GetY()[i]/numEntries);
-      }
-    }
-    else {
-      for (int i=0; i<tempFFT->GetN(); i++) {
-	averagedFFT->GetY()[i] += tempFFT->GetY()[i]/numEntries;
-	  }
-    }
-    */
 
     //store that in the array to average together later
     waveGraphs[entryAveraged] = new TGraph(*finalGraph);
-
-    //delete everything else
-    delete(calibGraph);
-    delete(interpGraph);
     delete(finalGraph);
-    //    delete(tempFFT);
     
     //set the names and titles of those graphs for fun (also I can save them later if I want)
     name.str("");
@@ -280,64 +264,74 @@ TGraph* surfParseAndAverage(string antName) {
     waveGraphs[entryAveraged]->SetTitle(name.str().c_str());
 
 
-    //incriment the number of graphs averaged
+    //incriment the number of graphs averaged, since a bunch of events aren't valid since they are the wrong lab
     entryAveraged++;
-    //delete the UsefulAnitaEvent
-    delete(useful);
   }
+  cout << "Saved " << entryAveraged << " waveforms to memory, next step: averaging" << endl;
 
-
-  //Correlate and Average all those graphs together
-  TGraph *avgWaveGraph = FFTtools::correlateAndAverage(numEntries,waveGraphs);
+//  //Correlate and Average all those graphs together
+//  TGraph *avgWaveGraph = new TGraph(*waveGraphs[entryAveraged-1]);
+  TGraph *avgWaveGraph = FFTtools::correlateAndAverage(entryAveraged,waveGraphs);
   name.str("");
-  name << "avgSurf_" <<  antName << "_avg";
+  name << "avgSurfGraph";
   avgWaveGraph->SetName(name.str().c_str());
   avgWaveGraph->SetLineColor(kRed);
   avgWaveGraph->SetMarkerColor(kRed);
   
 
 
+
+
+  // Save a bunch of interesting things about generating the surf waveform (since it messes up so often)
+  name.str("");
+  name << "waveforms/" << antName << "_surfInfo.root";
+  TFile *testFile = TFile::Open(name.str().c_str(),"recreate");
+
   //Save a copy of the histogram
-  TH1D *hist = brotterTools::correlationDistribution(numEntries,waveGraphs);
-  TGraph *corrPattern = brotterTools::correlationPattern(numEntries,waveGraphs);
+  TH1D *hist = brotterTools::correlationDistribution(entryAveraged,waveGraphs);
+  TGraph *corrPattern = brotterTools::correlationPattern(entryAveraged,waveGraphs);
   corrPattern->SetName("corrPattern1");
   corrPattern->SetTitle("corrPattern1");
 
-  TGraph *corrPattern2 = brotterTools::correlationPattern(numEntries,waveGraphs);
+  TGraph *corrPattern2 = brotterTools::correlationPattern(entryAveraged,waveGraphs);
   corrPattern2->SetName("corrPattern2");
   corrPattern2->SetTitle("corrPattern2");
 
-  TGraph *corrPattern3 = brotterTools::correlationPattern(numEntries,waveGraphs);
+  TGraph *corrPattern3 = brotterTools::correlationPattern(entryAveraged,waveGraphs);
   corrPattern3->SetName("corrPattern3");
   corrPattern3->SetTitle("corrPattern3");
 
-  TGraph *corrPattern4 = brotterTools::correlationPattern(numEntries,waveGraphs);
+  TGraph *corrPattern4 = brotterTools::correlationPattern(entryAveraged,waveGraphs);
   corrPattern4->SetName("corrPattern4");
   corrPattern4->SetTitle("corrPattern4");
 
-
-  name.str("");
-  name << "waveforms/" << antName << "_surfAll.root";
-  TFile *testFile = TFile::Open(name.str().c_str(),"recreate");
+  //write
+  for (int i=2; i<entryAveraged; i++) {
+    cout << i << endl;
+    TGraph *tempGraph = FFTtools::correlateAndAverage(i,waveGraphs);
+    name.str("");
+    name << "averagedGraph" << i;
+    tempGraph->SetName(name.str().c_str());
+    tempGraph->Write();
+    delete(tempGraph);
+  }
   hist->Write();
   corrPattern->Write();
   corrPattern2->Write();
   corrPattern3->Write();
   corrPattern4->Write();
-  averagedFFT->Write();
+  //  averagedFFT->Write();
 
-  for (int i=0; i<numEntries; i++) {
-    waveGraphs[i]->Write();
-  }
   testFile->Close();
 
   
   //memory management!
-  for (int i=0; i<numEntries; i++) {
+  for (int i=0; i<entryAveraged; i++) {
     delete(waveGraphs[i]); 
   }
 
   
+  cout << "done with making surf averaged graph" << endl;
   //Done!
   return avgWaveGraph;
 
