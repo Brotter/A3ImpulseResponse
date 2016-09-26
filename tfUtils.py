@@ -6,7 +6,13 @@ from scipy.interpolate import Akima1DInterpolator
 
 import copy
 
-import pyfftw.interfaces.numpy_fft as fftw
+
+try:
+    import pyfftw.interfaces.numpy_fft as fftw
+except:
+    print "You don't have the pyfftw package, so I'll use numpy's FFT package FFTPACK"
+    import numpy.fft as fftw
+
 
 import benMathFit as mf
 

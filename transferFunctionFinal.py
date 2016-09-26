@@ -5,8 +5,6 @@ from scipy.interpolate import interp1d
 
 from glob import glob
 
-import pyfftw.interfaces.numpy_fft as fftw
-
 import tfUtils as tf
 
 import cmath #for complex sqrt
@@ -69,6 +67,21 @@ def importANITA1():
     a1 = np.loadtxt("ANITA1ImpulseResponse.dat")
     return a1.T[0]*1e9,a1.T[1]
 
+###################################
+def findPalestineAntennaFile(chan):
+    
+    antennaInfo = np.loadtxt("antennaInformation_cut.csv",dtype=str,delimiter=",")
+
+    antennaNumber = int(antennaInfo.T[1][np.argwhere(antennaInfo.T[2]==chan[:3])[0][0]][1:])
+
+    print chan+" maps to antenna number "+str(antennaNumber)
+        
+    dir = "/Volumes/ANITA3Data/palestine14/SeaveyAntennas/S21s/"
+        
+    fileName = dir+"hpol_ezLinks/rxp"+str(antennaNumber).zfill(2)+"_coPol.csv"
+
+    return fileName
+
 
 ##########################
 def importPalAntIn(chan):
@@ -76,9 +89,9 @@ def importPalAntIn(chan):
         # there is only one waveform :( 
         # so I can't do any averaging and I just import the raw data I guess
         # Also this means I probably need to link the whole dir (since they are far away)
-    dir = "/Volumes/ANITA3Data/palestine14/SeaveyAntennas/S21s/"
-        
-    fileName = dir+"hpol_ezLinks/rxp01_coPol.csv"
+
+    fileName = findPalestineAntennaFile(chan)
+
     dataX,dataY = np.loadtxt(fileName,comments="\"",delimiter=",",usecols=(3,4)).T
 
 
@@ -94,9 +107,8 @@ def importPalAntIn(chan):
 #############################
 def importPalAntOut(chan):
 
-    dir = "/Volumes/ANITA3Data/palestine14/SeaveyAntennas/S21s/"
-        
-    fileName = dir+"hpol_ezLinks/rxp01_coPol.csv"
+    fileName = findPalestineAntennaFile(chan)
+
     dataX,dataY = np.loadtxt(fileName,comments="\"",delimiter=",",usecols=(3,4)).T
 
     dataX *= 1e9 #s ->ns
@@ -578,7 +590,7 @@ def computeTF(inF,inFFT,outF,outFFT):
     tfFFT = np.divide(outFFT,inFFT)
     tfF = inF
     
-    tfY = fftw.irfft(tfFFT)        
+    tfY = tf.fftw.irfft(tfFFT)        
 
 #    print tfY
 
