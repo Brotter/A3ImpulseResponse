@@ -68,7 +68,7 @@ def importANITA1():
     return a1.T[0]*1e9,a1.T[1]
 
 ###################################
-def findPalestineAntennaFile(chan):
+def findPalestineAntennaFile(chan,inOrOut):
     
     antennaInfo = np.loadtxt("antennaInformation_cut.csv",dtype=str,delimiter=",")
 
@@ -78,8 +78,12 @@ def findPalestineAntennaFile(chan):
         
     dir = "/Volumes/ANITA3Data/palestine14/SeaveyAntennas/S21s/"
         
-    fileName = dir+"hpol_ezLinks/rxp"+str(antennaNumber).zfill(2)+"_coPol.csv"
-
+    fileName = dir+chan[-1].lower()+"pol_ezLinks/rxp"+str(antennaNumber).zfill(2)
+    if inOrOut == "in":
+        fileName = fileName +"_inputPulse.csv"
+    if inOrOut == "out":
+        fileName = fileName +"_coPol.csv"
+ 
     return fileName
 
 
@@ -90,11 +94,11 @@ def importPalAntIn(chan):
         # so I can't do any averaging and I just import the raw data I guess
         # Also this means I probably need to link the whole dir (since they are far away)
 
-    fileName = findPalestineAntennaFile(chan)
+    fileName = findPalestineAntennaFile(chan,"in")
 
     dataX,dataY = np.loadtxt(fileName,comments="\"",delimiter=",",usecols=(3,4)).T
 
-
+    dataX *= 1e9
     #make the time range start at zero
     dataX -= dataX[0]
 
@@ -107,14 +111,13 @@ def importPalAntIn(chan):
 #############################
 def importPalAntOut(chan):
 
-    fileName = findPalestineAntennaFile(chan)
+    fileName = findPalestineAntennaFile(chan,"out")
 
     dataX,dataY = np.loadtxt(fileName,comments="\"",delimiter=",",usecols=(3,4)).T
 
     dataX *= 1e9 #s ->ns
-    if source.lower() == "palout":
-            dataY *= 100 #there is something super wrong with the scaling, 20mV Vpp, 15uV resolution?  Weird...
-            dataY *= -1 #also the polarity is flipped?  Look in log book to see if this is right...
+    dataY *= 100 #there is something super wrong with the scaling, 20mV Vpp, 15uV resolution?  Weird...
+    dataY *= -1 #also the polarity is flipped?  Look in log book to see if this is right...
 
 
     #make the time range start at zero
@@ -433,42 +436,7 @@ def processWaveform(graphT,graphV,source):
 ###############################################################################################################
 #Generating impulse responses
 
-    
-def genPalAntTF(chan):
-        #This should get the aligned and averaged waveforms, then process them so they have the same record length and dTs
-        #It does aliasing filtering and windowing as well, so everything should be pretty and wonderful to compare the two
-
-        """
-        You really only need to store everything as a class variable if you're going to plot it later
-        or if you want to be able to access it later
-        """
-
-
-        print "Importing Data..."
-        inRawX,inRawY,inRawF,inRawFFT = importPalAntIn
-        outRawX,outRawY,outRawF,outRawFFT = importData(outSource)
-
-
-        print "Processing Data..."
-        inX,inY = processWaveform(inRawX,inRawY,inSource)
-        inF,inFFT = tf.genFFT(inX,inY)
-
-        outX,outY = processWaveform(outRawX,outRawY,outSource)
-        outF,outFFT = tf.genFFT(outX,outY)
-
-
-        #calculate group delay difference bewteen the two
-        meanGD = calcMeanGD(outF,outFFT,inF,inFFT)
-
-        #print out some sanity checks
-        sanityCheck()
-
-        #generate transfer function
-        TFX,TFY,TFF,TFFFT = computeTF(inF,inFFT,outF,outFFT)
-
-
-        return 
-
+ 
 
 ##################################
 def doSigChainWithCables(chan):
@@ -549,12 +517,45 @@ def doRoofAntWithCables():
     return antTFX,antTFY,antTFF,antTFFFT
 
 
+###################
+def doPalAnt(chan):
+    #
+    # Go through ALL the antennas measured in palestine 2014
+    #
+
+
+
+    inX,inY,inF,inFFT = importPalAntIn(chan)
+    inX,inY = processWaveform(inX,inY,"palin")
+    inF,inFFT = tf.genFFT(inX,inY)
+
+    outX,outY,outF,outFFT = importPalAntOut(chan)
+    outX,outY = processWaveform(outX,outY,"palout")
+    outF,outFFT = tf.genFFT(outX,outY)
+
+    antTFX,antTFY,antTFF,antTFFFT = computeTF(inF,inFFT,outF,outFFT)
+
+
+    #one antenna should be the square root of the response
+    #cmath can't operate on numpy matricies so I have to iterate by hand
+    for i in range(0,len(antTFFFT)):
+        antTFFFT[i] = cmath.sqrt(antTFFFT[i])
+
+
+
+    return antTFX,antTFY,antTFF,antTFFFT
+
+
+
+
+
 
 ########################
 def doSigChainAndAntenna(chan):
     #get antenna
-    antX,antY,antF,antFFT = doRoofAntWithCables()
-
+#    antX,antY,antF,antFFT = doRoofAntWithCables()
+    antX,antY,antF,antFFT = doPalAnt(chan)
+    
     #get sig chain
     sigChainF,sigChainFFT = doSigChainWithCables(chan)
 
@@ -667,7 +668,7 @@ def writeAll(allChans):
         try:
             file = open("autoPlots/"+chan+".txt","w")
             for i in range(0,len(allChans[chan][0])):
-                file.write(str(allChans[chan][0][i])+" "+str(allChans[chan][1][i])+"n")
+                file.write(str(allChans[chan][0][i])+" "+str(allChans[chan][1][i])+"\n")
             file.close()
         except:
             print chan+" FAILED"
@@ -715,7 +716,7 @@ def saveAllNicePlots(allChans):
 
         #plot it
         ax[0].cla()
-        ax[0].set_title(chan)
+        ax[0].set_title(chan,fontsize = 30)
         ax[0].plot(a3X,a3Y*scale,'.-',lw=3,label="ANITA3",color="red")
         ax[0].plot(a1X-maxDiff,a1Y,'.',label="ANITA1",color="green")
         ax[0].plot(a3X-maxDiff,a1YInterp,'-',color="green")
@@ -731,7 +732,7 @@ def saveAllNicePlots(allChans):
         ax[1].set_xlabel("frequency (GHz)")
         ax[1].set_ylabel("gain (dB)")
         ax[1].set_xlim([0,2])
-        ax[1].set_ylim([0,60])
+        ax[1].set_ylim([10,80])
         ax[1].set_autoscale_on(False)
     
         fig.savefig("autoPlots/"+chan+".png")
