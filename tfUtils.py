@@ -13,6 +13,7 @@ except:
     print "You don't have the pyfftw package, so I'll use numpy's FFT package FFTPACK"
     import numpy.fft as fftw
 
+import cmath #for doing complex square root
 
 import benMathFit as mf
 
@@ -151,6 +152,29 @@ def zeroPadEqual(inXArray,inYArray,outPoints):
 
     return np.array(tempXList),np.array(tempYList)
 
+
+
+def hanningTail(inYArray,start,slope):
+    """
+    If you roll the waveform to the front of the window, you only want to hanning filter the end of it, so this does that.
+
+    Comparable to doing a hanning window with a step function on the left side
+    """
+    
+    outYArray = []
+    for pt in range(0,len(inYArray)):
+        if pt<=start:
+            outYArray.append(inYArray[pt])
+        if pt>start and pt<=start+slope: 
+            pt_corr = pt - start
+            value = 0.5 + 0.5*np.cos((np.pi*(-pt_corr/float(slope))))
+            outYArray.append(inYArray[pt]*value)
+        if pt>(start+slope):
+            outYArray.append(0)
+
+    return outYArray
+
+
 def hanningWindow(inXArray,inYArray,center,totalWidth=1000,slope=200):
     """
     Takes two input arrays (x and y, since they both will change length), a total width, and a center (and optional slope).
@@ -224,16 +248,6 @@ def nyquistLimit(inputWaveVolts,fMax):
         
     return filtered
 
-def lowPassFilter(inputX,inputY,lpFilter=1.25):
-    fMax = 2./(inputX[1]-inputX[0])
-    lpFilter /= fMax
-
-    b,a = signal.butter(5,lpFilter,"lowpass")
-
-    filtered = signal.lfilter(b,a,inputY)
-    
-    return filtered
-
 
 def calcPhase(inputFFT):
 
@@ -276,8 +290,8 @@ def gainAndPhaseToComplex(gainLin,phase):
     real = []
     imag = []
     for i in range(0,len(gainLin)):
-        real.append(gainLin[i]*np.sin(phase[1]))
-        imag.append(gainLin[i]*np.cos(phase[1]))
+        real.append(gainLin[i]*np.sin(phase[i]))
+        imag.append(gainLin[i]*np.cos(phase[i]))
   
     return np.array(real)+np.array(imag)*1j
 
@@ -292,6 +306,32 @@ def complexToGainAndPhase(fft):
     phase = unwrapPhase(phase)
 
     return np.array(gainLin),np.array(phase)
+
+
+
+def sqrtOfFFT2(fft):
+    """
+    This is the actual way to do it!  The phase is divided in two and the magnitude is rooted.  
+    I THINK this preserves the signal (though it does time invert the causality so you have to reverse the inverse fft)
+    """
+
+    gain,phase = complexToGainAndPhase(fft)
+    gain = np.sqrt(gain)
+    gphase = phase/2.
+    fftOut = gainAndPhaseToComplex(gain,phase)
+
+    return fftOut
+
+def sqrtOfFFT1(fft):
+    """
+    The dumbest and first approach at taking the square root of a complex transfer function
+    Since sqrt isn't well defined for a complex number, this doesn't preserve the time domain signal
+    """
+    out = []
+    for i in range(0,len(fft)):
+        out.append(cmath.sqrt(fft[i]))
+
+    return np.array(out)
 
 
 def calcGroupDelay(inputF,inputFFT):
@@ -359,6 +399,18 @@ def lowPass(inputWaveX,inputWaveY,lpFilter=1.50):
 
         
     return filtered
+
+
+def lowPassFilter(inputX,inputY,lpFilter=1.25):
+    fMax = 2./(inputX[1]-inputX[0])
+    lpFilter /= fMax
+
+    b,a = signal.butter(5,lpFilter,"lowpass")
+
+    filtered = signal.lfilter(b,a,inputY)
+    
+    return filtered
+
 
 
 def printTimeDomainToFile(x,y,file):

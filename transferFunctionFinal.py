@@ -470,13 +470,28 @@ def doSigChainWithCables(chan):
     #get the surf (extracted from ROOT data from another script)
     surfRawX,surfRawY,surfRawF,surfRawFFT = importSurf(chan)
     surfX,surfY = processWaveform(surfRawX,surfRawY,"surf")
+
     surfF,surfFFT = tf.genFFT(surfX,surfY)
 
     #deconvolve signal chain transfer function out of that!
     tfFFT = surfFFT/ampaInputFFT
+
+    #zero out everything above 1.3GHz because that's our nyquist limit
+#    for i in range(0,len(surfF)):
+#        if surfF[i] > 1.3:
+#            tfFFT[i] = 0
+
+    #change it back to time domain
+    tfY = tf.fftw.irfft(tfFFT)
+    
+    #clean up the tail and make it start at the beginning
+#    tfY = np.roll(tfY,150-np.argmax(tfY))
+#    tfY = tf.hanningTail(tfY,370,30)
     
 
-    return surfF,tfFFT 
+
+
+    return surfX,tfY,surfF,tfFFT 
 
 ##########################
 def doRoofAntWithCables():
@@ -538,9 +553,19 @@ def doPalAnt(chan):
 
     #one antenna should be the square root of the response
     #cmath can't operate on numpy matricies so I have to iterate by hand
-    for i in range(0,len(antTFFFT)):
-        antTFFFT[i] = cmath.sqrt(antTFFFT[i])
+    #this also doesn't work... maybe I can just do it in group delay and magnitude?
+    #basically since square roots are poorly defined in complex space, you NEED to do it with
+    # the sines and cosines, which I added to tfUtils!
+    antTFFFT = tf.sqrtOfFFT2(antTFFFT)
 
+    #I have to get the time domain again after that, which is time reversed because of math
+    antTFY = tf.fftw.irfft(antTFFFT)
+    antTFY = antTFY[::-1]
+    
+    
+    #clean up the tail and make it start at the beginning
+    antTFY = np.roll(antTFY,40-np.argmax(antTFY))
+    antTFY = tf.hanningTail(antTFY,370,30)
 
 
     return antTFX,antTFY,antTFF,antTFFFT
@@ -557,7 +582,8 @@ def doSigChainAndAntenna(chan):
     antX,antY,antF,antFFT = doPalAnt(chan)
     
     #get sig chain
-    sigChainF,sigChainFFT = doSigChainWithCables(chan)
+    sigChainX,sigChainY,sigChainF,sigChainFFT = doSigChainWithCables(chan)
+
 
     #convolve the two (full ANITA3 transfer function!)
     a3F = sigChainF
@@ -566,13 +592,12 @@ def doSigChainAndAntenna(chan):
     a3FFT = np.concatenate((a3FFT[:171],np.zeros(342)))
     a3X = antX
     a3Y = tf.fftw.irfft(a3FFT)
-    #get the pulse at the beginning
-    yMax = np.argmax(a3Y)
-    a3Y = np.roll(a3Y,50-yMax)
-    #make it look nice and cut off the shit at the end
-    a3X,a3Y = tf.hanningWindow(a3X,a3Y,np.argmax(a3Y)+100,totalWidth=500,slope=50)
-    a3X,a3Y = tf.zeroPadEqual(a3X,a3Y,1024)
 
+    #make it look nice and cut off the shit at the end
+    a3Y = np.roll(a3Y,40-np.argmax(a3Y))
+    a3Y = tf.hanningTail(a3Y,300,200)
+    a3X,a3Y = tf.zeroPadEqual(a3X,a3Y,1024)
+    
     
 
     return a3X,a3Y
