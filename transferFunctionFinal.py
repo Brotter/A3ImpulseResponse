@@ -231,6 +231,9 @@ def getCables(fileName,phaseShift=0):
     cablePhase = cablePhase+phaseShift
 
     cableFFT = tf.gainAndPhaseToComplex(cableGainLin,cablePhase)
+    
+    return cableFreq,cableFFT
+
     cableF2,cableFFT = tf.complexZeroPadAndResample(cableFreq,cableFFT)
 
 
@@ -477,16 +480,16 @@ def doSigChainWithCables(chan):
     tfFFT = surfFFT/ampaInputFFT
 
     #zero out everything above 1.3GHz because that's our nyquist limit
-#    for i in range(0,len(surfF)):
-#        if surfF[i] > 1.3:
-#            tfFFT[i] = 0
+ #   for i in range(0,len(surfF)):
+ #       if surfF[i] > 1.3:
+ #           tfFFT[i] /= 1e6
 
     #change it back to time domain
     tfY = tf.fftw.irfft(tfFFT)
     
     #clean up the tail and make it start at the beginning
-#    tfY = np.roll(tfY,150-np.argmax(tfY))
-#    tfY = tf.hanningTail(tfY,370,30)
+#    tfY = np.roll(tfY,30-np.argmax(tfY))
+#    tfY = tf.hanningTail(tfY,200,100)
     
 
 
@@ -556,16 +559,16 @@ def doPalAnt(chan):
     #this also doesn't work... maybe I can just do it in group delay and magnitude?
     #basically since square roots are poorly defined in complex space, you NEED to do it with
     # the sines and cosines, which I added to tfUtils!
-    antTFFFT = tf.sqrtOfFFT2(antTFFFT)
+    #antTFFFT = tf.sqrtOfFFT2(antTFFFT)
 
     #I have to get the time domain again after that, which is time reversed because of math
     antTFY = tf.fftw.irfft(antTFFFT)
-    antTFY = antTFY[::-1]
+    #antTFY = antTFY[::-1]
     
     
     #clean up the tail and make it start at the beginning
-    antTFY = np.roll(antTFY,40-np.argmax(antTFY))
-    antTFY = tf.hanningTail(antTFY,370,30)
+#    antTFY = np.roll(antTFY,40-np.argmax(antTFY))
+#    antTFY = tf.hanningTail(antTFY,370,30)
 
 
     return antTFX,antTFY,antTFF,antTFFFT
@@ -589,14 +592,14 @@ def doSigChainAndAntenna(chan):
     a3F = sigChainF
     a3FFT = sigChainFFT * antFFT
     #clean it up a bit
-    a3FFT = np.concatenate((a3FFT[:171],np.zeros(342)))
+#    a3FFT = np.concatenate((a3FFT[:171],np.zeros(342))) #this isn't causal...
     a3X = antX
     a3Y = tf.fftw.irfft(a3FFT)
 
-    #make it look nice and cut off the shit at the end
-    a3Y = np.roll(a3Y,40-np.argmax(a3Y))
-    a3Y = tf.hanningTail(a3Y,300,200)
-    a3X,a3Y = tf.zeroPadEqual(a3X,a3Y,1024)
+    #make it look nice and cut off the junk at the end
+#    a3Y = np.roll(a3Y,40-np.argmax(a3Y))
+#    a3Y = tf.hanningTail(a3Y,300,200)
+#    a3X,a3Y = tf.zeroPadEqual(a3X,a3Y,1024)
     
     
 

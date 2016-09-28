@@ -48,13 +48,21 @@ def genFreqArray(graphX):
 
 
 
-#def genFreqArray(graphX):
-#    dF = 1./((graphX[1]-graphX[0])*len(graphX))
+def genTimeSeries(graphF,graphFFT):
+    outY = fftw.irfft(graphFFT)
+    outX = genTimeArray(graphF)
 
-#    N=len(graphX)
-#    fMax = N/2 * dF
+    return outX,outY
 
-#    return np.arange(0,fMax+dF,dF)
+def genTimeArray(graphF):
+    lengthT = (len(graphF) - 1) * 2.
+    
+    dT = 1./((graphF[1]-graphF[0])*lengthT)
+    
+    tMax = lengthT * dT
+
+    return np.arange(0,tMax,dT)
+
 
 
 def genLogMag(graphX,graphY):
@@ -172,7 +180,7 @@ def hanningTail(inYArray,start,slope):
         if pt>(start+slope):
             outYArray.append(0)
 
-    return outYArray
+    return np.array(outYArray)
 
 
 def hanningWindow(inXArray,inYArray,center,totalWidth=1000,slope=200):
@@ -286,6 +294,14 @@ def fftPhaseShift(fft,shift):
     return fft
 
 
+def timePhaseShift(Y,shift):
+    fft = fftw.rfft(Y)
+    gainLin,phase = complexToGainAndPhase(fft)
+    phase = phase+shift
+    fft2 = gainAndPhaseToComplex(gainLin,phase)
+    outY = fftw.irfft(fft)
+    return outY
+
 def gainAndPhaseToComplex(gainLin,phase):
     real = []
     imag = []
@@ -303,7 +319,8 @@ def complexToGainAndPhase(fft):
         gainLin.append(np.absolute(fft[i]))
         phase.append(np.angle(fft[i]))
   
-    phase = unwrapPhase(phase)
+    #can't do this!  It distorts which phasor quadrant you are in
+#    phase = unwrapPhase(phase)
 
     return np.array(gainLin),np.array(phase)
 
@@ -776,11 +793,17 @@ def interp(xNew,xOld,yOld,right=0):
 
 def complexZeroPadAndResample(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1):
     """
-    This is the important function for matching so I'll explain it:
+    This is an important function for matching so I'll explain it:
     So far I've done everything to 1024 samples at 0.1ns in time domain
 
     ->>  That translates to 513 samples (len/2+1) at 0.009765625GHz (1/Ttot)
          Fmax = 5GHz (zero pad to reach this value)
+
+    This BREAKS THINGS!! :( It makes a second weird pulse occur?  Maybe I should just do it in time domain...
+    It is because setting values out of the range of the input pulse to 1 is adding power in weird places
+    So I changed the "right=1" to "right=0" and that fixes things somewhat
+
+
     """
 
     finaldF = 1./(sampleLength*sampleResolu);
@@ -792,18 +815,18 @@ def complexZeroPadAndResample(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1
     #so I have to do this by hand (wonderful)
     inputReal = np.real(inputFFT)
     inputImag = np.imag(inputFFT)
-    outputReal = interp(outputF,inputF,inputReal,right=1)
-    outputImag = interp(outputF,inputF,inputImag,right=1)
+    outputReal = interp(outputF,inputF,inputReal,right=0)
+    outputImag = interp(outputF,inputF,inputImag,right=0)
 
     outputFFT = outputReal+outputImag*1j
 
 #    print outputReal
 
 
-#    fig,ax = lab.subplots()
-#    ax.plot(outputF,outputReal,'-')
- #   ax.plot(inputF,inputReal,'.')
- #   fig.show()
+    fig,ax = lab.subplots()
+    ax.plot(outputF,outputReal,'-')
+    ax.plot(inputF,inputReal,'.')
+    fig.show()
 
     
     return outputF,outputFFT
@@ -820,3 +843,128 @@ def fourierZero(FFT):
             newFFT.append(FFT[i])
 
     return np.array(newFFT)
+
+
+
+
+
+#################################################
+#
+#   Using phase shifting to make a causal signal
+#
+#################################################
+
+
+def makeCausal(x,y):
+    """
+    http://cdn.teledynelecroy.com/files/whitepapers/14-wp6paper_doshi.pdf
+    
+    Basically when taking the S21 of a cable or signal (which we are doing, just a forward gain
+    complex phasor,), Fractional sample offsets distort the signal from causal to an acausal sinc
+    function in the time domain.  To alieviate this, it is allowed to shift the total phase of the
+    S21 in order to achieve maximum causality, which in this case would be a high pre-T0 to post-T0
+    power ratio.
+
+    I wrote a section about this in the impulse response white paper citing the above linked paper
+    """
+
+
+    lab.close("all")
+
+    f,logMag = genLogMag(x,y)
+
+    startLen = len(x)
+    y2= np.concatenate((y[:startLen/2],np.zeros(startLen/2)))
+    f2,logMag2 = genLogMag(x,y2)
+
+
+    fig,ax = lab.subplots(2)
+    ax[0].plot(f,logMag,label="standard")
+    ax[0].plot(f2,logMag2,label="goofy")
+    ax[0].legend()
+    ax[1].plot(x,np.roll(y,500),label="standard")
+    ax[1].plot(x,np.roll(y2,500),label="goofy")
+    ax[1].legend()
+
+    fig.show()
+
+
+
+
+def compPhaseShiftSimple(cableName):
+    shifts = np.arange(-np.pi*2,np.pi*2,0.1)
+    shiftedArrayMaxes = []
+    for shift in shifts:
+        a,b = getCables(cableName,phaseShift=shift)
+        fft = tf.fftw.irfft(b)
+        shiftedArrayMaxes.append(np.max(fft))
+
+    fig,ax = lab.subplots()
+    ax.plot(shifts,shiftedArrayMaxes)
+    fig.show()
+    
+    return shiftedArrayMaxes
+
+
+def compPhaseShifts(cableName):
+    shifts = np.arange(0,np.pi*2,0.001)
+    shiftedArrayMaxes = []
+    for shift in shifts:
+        a,b = getCables(cableName,phaseShift=shift)
+        fft = tf.fftw.irfft(b)
+        shiftedArrayMaxes.append(np.max(fft))
+
+    fig,ax = lab.subplots()
+    ax.plot(shifts,shiftedArrayMaxes)
+    fig.show()
+    
+    return shifts[np.argmax(shiftedArrayMaxes)]
+        
+
+
+def compPhaseShifts2(cableName="A-C_PULSER-TEST_66DB.s2p"):
+    max = compPhaseShifts(cableName)
+    print max
+    shiftedArrayMaxes = []
+    shifts = np.arange(max-1,max+1,0.25)
+    fig,ax = lab.subplots()
+
+    for shiftNum in range(0,len(shifts)):
+        a,b = getCables(cableName,phaseShift=shifts[shiftNum])
+        fft = tf.fftw.irfft(b)
+        ax.plot(np.arange(0,len(fft))+shiftNum*len(fft),np.roll(fft,400))
+
+
+    fig.show()
+    return
+
+
+def compPhaseShifts3(x,y):
+
+    f,fft = genFFT(x,y)
+
+
+    maxes = []
+    mins = []
+    p2p = []
+    shifts = np.arange(-np.pi,np.pi,0.02)
+    fig,ax = lab.subplots(3)
+    fig.show()
+    for i in range(0,len(shifts)):
+        shifted = fftPhaseShift(fft,shifts[i])
+        fftShifted = fftw.irfft(shifted)
+#        ax[0].plot(np.roll(fftShifted,100+i*20))
+        ax[0].cla()
+        ax[0].plot(fftShifted)
+        ax[0].set_xlim([0,100])
+        maxes.append(np.max(fftShifted))
+        mins.append(np.min(fftShifted))
+        p2p.append(maxes[-1]-mins[-1])
+        ax[1].cla()
+        ax[1].plot(shifts[:i+1],maxes)
+        ax[1].plot(shifts[:i+1],mins)
+        ax[2].cla()
+        ax[2].plot(shifts[:i+1],p2p)
+        fig.canvas.draw()
+
+    return maxes
