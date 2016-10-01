@@ -61,6 +61,8 @@ def genTimeArray(graphF):
     
     tMax = lengthT * dT
 
+    print dT,tMax
+
     return np.arange(0,tMax,dT)
 
 
@@ -297,8 +299,10 @@ def fftPhaseShift(fft,shift):
 def timePhaseShift(Y,shift):
     fft = fftw.rfft(Y)
     gainLin,phase = complexToGainAndPhase(fft)
-    phase = phase+shift
-    fft2 = gainAndPhaseToComplex(gainLin,phase)
+    phase += shift
+#    phase[phase>=np.pi] -= np.pi
+#    phase[phase<=-np.pi] += np.pi
+    fft = gainAndPhaseToComplex(gainLin,phase)
     outY = fftw.irfft(fft)
     return outY
 
@@ -823,14 +827,39 @@ def complexZeroPadAndResample(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1
 #    print outputReal
 
 
-    fig,ax = lab.subplots()
-    ax.plot(outputF,outputReal,'-')
-    ax.plot(inputF,inputReal,'.')
-    fig.show()
+#    fig,ax = lab.subplots()
+#    ax.plot(outputF,outputReal,'-',label="output")
+#    ax.plot(inputF,inputReal,'.',label="input")
+#    ax.legend()
+#    fig.show()
 
     
     return outputF,outputFFT
 
+def fourierZeroPad(f,fft,numPads):
+    #this doesn't work and does bad things
+    print "fourierPad doesn't work and does bad things"
+    fftOut = np.concatenate((fft,np.zeros(numPads)))
+    fOut = np.concatenate((f,np.arange(0,numPads)*(f[1]-f[0])+f[-1]))
+
+    return fOut,fftOut
+
+def fourierPad(f,fft,numPads,value):
+    #this doesn't work and does bad things
+    print "fourierPad doesn't work and does bad things"
+
+#    realPad = np.arange(numPads,0,-1)*(value/numPads)
+    realPad = np.ones(numPads)*value
+#    realPad[::2] *= -1
+    imagPad = np.imag(signal.hilbert(realPad))
+
+    real = np.concatenate((np.real(fft),realPad))
+    imag = np.concatenate((np.imag(fft),imagPad))
+
+#    fftOut = np.concatenate((fft,(np.ones(numPads)-np.ones(numPads)*1j)*value))
+    fOut = np.concatenate((f,np.arange(0,numPads)*(f[1]-f[0])+f[-1]))
+
+    return fOut,real+imag*1j
 
 def fourierZero(FFT):
     newFFT = []
@@ -845,7 +874,29 @@ def fourierZero(FFT):
     return np.array(newFFT)
 
 
+def fourierExtrapolate(fftIn,numPads,fitStart=-1):
+    if fitStart==-1:
+        fft = fftIn
+    else:
+        fft = fftIn[:fitStart]
+    p = mf.fitPoly3(np.arange(0,len(fft)),np.absolute(fft),[0,0,0,0])
+    print p
+    extrap = mf.lambdaPoly3(p[0],np.arange(0,len(fftIn)+numPads))
+    extrap = hanningTail(extrap,len(fft),len(fft)+50)
 
+    #I put work into this so I want to keep it but it doesn't work!
+#    decay = mf.lambdaDecay([1.,100.],np.arange(0,numPads,dtype=float))
+#    decay = np.concatenate((np.ones(len(fft)),decay))
+#    print len(fft),len(decay),len(extrap)
+#    extrap *= decay
+
+
+    fig,ax = lab.subplots()
+    ax.plot(np.absolute(fft))
+    ax.plot(extrap)
+    fig.show()
+
+    return extrap
 
 
 #################################################
@@ -855,7 +906,7 @@ def fourierZero(FFT):
 #################################################
 
 
-def makeCausal(x,y):
+def makeCausalFFT(fft,center):
     """
     http://cdn.teledynelecroy.com/files/whitepapers/14-wp6paper_doshi.pdf
     
@@ -866,29 +917,49 @@ def makeCausal(x,y):
     power ratio.
 
     I wrote a section about this in the impulse response white paper citing the above linked paper
+
+    I think the max causality has to be in between -pi and pi... though probably smaller
+    HOW IS THE CENTER DEFINED???? (17 is just for the cables which I found by looking, but it has to be
+    calculatable somehow).  You have to provide this because I'm strapped for time
+
+    Also at some point I should fit the "causalityRatio" thing and actually find the perfect point, but 
+    that is polishing the cannon for sure.
+
+    Also note that this can 180 degree phase shift things (flip the polarity) so BE CAREFUL
     """
 
+    shifts = np.arange(-np.pi,np.pi,0.01)
+    
+    causalityRatio = []
 
-    lab.close("all")
+    for i in range(0,len(shifts)):
+        shiftedFFT = fftPhaseShift(fft,shifts[i])
+        shifted = fftw.irfft(shiftedFFT)
+        causalityRatio.append(np.sum(shifted[:center]**2)/np.sum(shifted[center:]**2))
 
-    f,logMag = genLogMag(x,y)
-
-    startLen = len(x)
-    y2= np.concatenate((y[:startLen/2],np.zeros(startLen/2)))
-    f2,logMag2 = genLogMag(x,y2)
-
-
-    fig,ax = lab.subplots(2)
-    ax[0].plot(f,logMag,label="standard")
-    ax[0].plot(f2,logMag2,label="goofy")
-    ax[0].legend()
-    ax[1].plot(x,np.roll(y,500),label="standard")
-    ax[1].plot(x,np.roll(y2,500),label="goofy")
-    ax[1].legend()
-
-    fig.show()
+    #minimum is when things are "most causal" (second half biggest than first half)
+    maxCausal = np.argmin(causalityRatio)
+    
+    print "Maximum causal waveform found at: ",shifts[maxCausal]
+    shiftedFFT = fftPhaseShift(fft,shifts[maxCausal])
 
 
+    return shiftedFFT
+
+
+def makeCausalTime(y,center):
+    """
+    If you have the time series, this makes it easier (but slower!  Two FFTS!)
+    
+    you have to provide the pulse (in bins)
+
+    """
+
+    fft = fftw.rfft(y)
+    shifted = makeCausalFFT(fft,center)
+    yOut = fftw.irfft(shifted)
+
+    return yOut
 
 
 def compPhaseShiftSimple(cableName):
@@ -939,32 +1010,50 @@ def compPhaseShifts2(cableName="A-C_PULSER-TEST_66DB.s2p"):
     return
 
 
-def compPhaseShifts3(x,y):
+def compPhaseShifts3(y,center,save=False):
 
-    f,fft = genFFT(x,y)
+    fft = fftw.rfft(y)
 
-
-    maxes = []
-    mins = []
-    p2p = []
-    shifts = np.arange(-np.pi,np.pi,0.02)
-    fig,ax = lab.subplots(3)
+    maxes  = []
+    mins   = []
+    maxLoc = []
+    minLoc = []
+    causalityRatio = []
+    shifts = np.arange(-2*np.pi,2*np.pi,0.1)
+#    shifts = np.arange(-np.pi/4.,np.pi/4.,0.01)
+    fig,ax = lab.subplots(3,2,figsize=(20,10))
     fig.show()
     for i in range(0,len(shifts)):
-        shifted = fftPhaseShift(fft,shifts[i])
-        fftShifted = fftw.irfft(shifted)
-#        ax[0].plot(np.roll(fftShifted,100+i*20))
-        ax[0].cla()
-        ax[0].plot(fftShifted)
-        ax[0].set_xlim([0,100])
-        maxes.append(np.max(fftShifted))
-        mins.append(np.min(fftShifted))
-        p2p.append(maxes[-1]-mins[-1])
-        ax[1].cla()
-        ax[1].plot(shifts[:i+1],maxes)
-        ax[1].plot(shifts[:i+1],mins)
-        ax[2].cla()
-        ax[2].plot(shifts[:i+1],p2p)
-        fig.canvas.draw()
+        shiftedFFT = fftPhaseShift(fft,shifts[i])
+        shifted = fftw.irfft(shiftedFFT)
+        ax[0][0].cla()
+        ax[0][0].plot(range(0,center),shifted[:center],color="red")
+        ax[0][0].plot(range(center,len(shifted)),shifted[center:],color="blue")
+#        ax[0][0].set_xlim([0,200])
+        ax[1][0].cla()
+        ax[1][0].plot(10.*np.log10((np.abs(shiftedFFT[1:-1])**2)))
+        ax[2][0].cla()
+        ax[2][0].plot(np.angle(shiftedFFT[1:-1]))
+        maxes.append(np.max(shifted))
+        mins.append(np.min(shifted))
+        maxLoc.append(np.argmax(shifted))
+        minLoc.append(np.argmin(shifted))
+        causalityRatio.append(np.sum(shifted[:center]**2)/np.sum(shifted[center:]**2))
+        ax[0][1].plot(shifts[i],maxes[-1],'.',color="blue")
+        ax[0][1].plot(shifts[i],mins[-1],'.',color="red")
 
-    return maxes
+        ax[1][1].plot(shifts[i],maxLoc[-1],'.',color="blue")
+        ax[1][1].plot(shifts[i],minLoc[-1],'.',color="red")
+
+        ax[2][1].plot(shifts[i],causalityRatio[-1],'.',color="purple")
+        fig.canvas.draw()
+        if save==True:
+            fig.savefig("phaseShiftMovie/"+str(i).zfill(3)+".png")
+
+    maxCausal = np.argmax(causalityRatio)
+    
+    shiftedFFT = fftPhaseShift(fft,shifts[maxCausal])
+    shifted = fftw.irfft(shiftedFFT)
+
+
+    return causalityRatio,shifted

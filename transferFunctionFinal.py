@@ -1,7 +1,9 @@
 import numpy as np
 import pylab as lab
-import scipy.signal as signal
+
+from scipy import signal
 from scipy.interpolate import interp1d
+from scipy.interpolate import Akima1DInterpolator
 
 from glob import glob
 
@@ -15,6 +17,7 @@ try:
     import seaborn as sns #just a pretty plotting package, it isn't important
 except:
     print "You don't have seaborn but thats okay!"
+
 
 """
 Ben Rotter
@@ -223,30 +226,48 @@ def importScope(chan):
 
 
 #####################################
-def getCables(fileName,phaseShift=0):
+def getCables(fileName,center,hanning=False):
     cableFreq,cableGainLin,cablePhase = s2pParser(cablesBaseDir + fileName)
 
-
-    #shift phase?
-    cablePhase = cablePhase+phaseShift
-
+    #cables from network analyzer were stored in gain and phase...
     cableFFT = tf.gainAndPhaseToComplex(cableGainLin,cablePhase)
     
-    return cableFreq,cableFFT
 
-    cableF2,cableFFT = tf.complexZeroPadAndResample(cableFreq,cableFFT)
+    #For the long cables, there are two time domain pulses for some stupid reason
+    #Maybe it wraps around?  Definitely an artifact at least... Windowing it out seems fair
+    if hanning==True:
+        hanningWidth = 300
+        center = hanningWidth/2-1
+        x,y = tf.genTimeSeries(cableFreq,cableFFT)
+        x,y = tf.hanningWindow(x,y,np.argmax(y),totalWidth=hanningWidth,slope=50)
+        cableFreq,cableFFT = tf.genFFT(x,y)
 
 
+    #make it causal so it is all pretty :) 
+    cableFFT  = tf.makeCausalFFT(cableFFT,center)
 
 
-    return cableF2,cableFFT
+    #this might do bad things...
+    #the goal of it was to get the time binning and window length the same
+    #for an irfft, but this just worstens the fractional phase offset error at first...
+    #-> Yeah even for a "phase aligned" waveform it messes it up
+#    cableF2,cableFFT2 = tf.complexZeroPadAndResample(cableFreq,cableFFT)
+
+    #I just want 0.1ns sampling and 1024 samples in the time domain so I'll just do that
+    x,y = tf.genTimeSeries(cableFreq,cableFFT)
+    yInterp = Akima1DInterpolator(x,y)
+    newX = np.arange(0,1024)*0.1
+    newY = np.nan_to_num(yInterp(newX))
+    fOut,fftOut = tf.genFFT(newX,newY)
+
+    return fOut,fftOut
 
 ########################
 def s2pParser(fileName):
 
-    freq = []
-    gainLin = []
-    phase = []
+    freq = [0]
+    gainLin = [0]
+    phase = [0]
     with open(fileName) as inFile:
         for line in inFile:
             if (line[0] !='!' and line[0] != '#'):
@@ -257,9 +278,10 @@ def s2pParser(fileName):
                 
 #    fig,ax = lab.subplots(2,sharex=True)
 #    ax[0].plot(phase)
-    phase = tf.unwrapPhase(phase)
+#    phase = tf.unwrapPhase(phase)
 #    ax[1].plot(phase)
 #    fig.show()
+                
 
     return np.array(freq),np.array(gainLin),np.array(phase)
 
@@ -439,7 +461,14 @@ def processWaveform(graphT,graphV,source):
 ###############################################################################################################
 #Generating impulse responses
 
- 
+
+#getting the cables is really resource intensive, so I'd like to do it once and then be done with it
+#so I guess I can save it within the module?  Initialize them as False and then fill them if they
+# aren't an numpy ndarray (which a boolean isn't)
+P2SF = False
+P2SFFT = False
+P2AF = False
+P2AFFT = False
 
 ##################################
 def doSigChainWithCables(chan):
@@ -455,9 +484,17 @@ def doSigChainWithCables(chan):
     #1.26 is the max coherance phase?
 #    scopeFFT = tf.fftPhaseShift(scopeFFT,1.26)
 
+
     #Get the cable's (H(f) transfer function for pulser to scope)
-    #phaseShift was calculated using compPhaseShifts2(), it is when there is peak coherence
-    P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p")
+    #The 17 (for the "center") is from tf.compPhaseShifts3(), which makes a nice film of where the 
+    # phase center is
+    global P2SF
+    global P2SFFT
+    if type(P2SF) != np.ndarray:
+        print "Getting Pulser to Scope Cables..."
+        P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p",17)
+
+
 
     #deconvolve cable pulse * cable = scope -> pulse = scope/cable
     #finds just the pulser impulse
@@ -465,10 +502,16 @@ def doSigChainWithCables(chan):
 
 
     #Get the cable's (H(f) transfer function for pulser to AMPA)
-    P2AF,P2AFFT= getCables("A-C_PULSER-TEST_66DB.s2p")
+    # again, the 650 is from tf.compPhaseShifts3() (it should actually be 650.5, but can't be)
+    global P2AF
+    global P2AFFT
+    if type(P2AF) != np.ndarray:
+        print "Getting Pulser to Ampa Cables..."
+        P2AF,P2AFFT= getCables("A-C_PULSER-TEST_66DB.s2p",650,hanning=True)
     
     #convolve it with that transfer function to get pulse at AMPA
     ampaInputFFT = P2AFFT*pulseDeconvFFT
+
 
     #get the surf (extracted from ROOT data from another script)
     surfRawX,surfRawY,surfRawF,surfRawFFT = importSurf(chan)
@@ -916,3 +959,59 @@ def importAndPlotSurfs():
     fig2.show()
 
     return
+
+
+
+
+def fourierZeroPadding():
+
+    a,b,f,fft = getCables("A-B_PULSER-SCOPE.s2p")
+    print len(fft)
+    f2,fft2 = tf.fourierZeroPad(f,fft,len(fft)*3)
+
+    fig,ax = lab.subplots(2)
+    ax[0].plot(f,np.real(fft),color="blue")
+    ax[0].plot(f,np.imag(fft),'--',color="blue")
+
+
+    ax[0].plot(f2,np.real(fft2),color="red")
+    ax[0].plot(f2,np.imag(fft2),'--',color="red")
+
+    ax[1].plot(*tf.genTimeSeries(f,fft))
+    ax[1].plot(*tf.genTimeSeries(f2,fft2))
+
+    fig.show()
+
+
+    return f,fft,f2,fft2
+
+
+def fourierCausalPadding():
+    f,cableGainLin,cablePhase = s2pParser(cablesBaseDir + "A-C_PULSER-TEST_40DB.s2p")
+#    cablePhase -= cablePhase[1]
+    fft = tf.gainAndPhaseToComplex(cableGainLin,cablePhase)
+    
+    ampliToExtrapolate = np.absolute(fft[-1])
+    print ampliToExtrapolate
+    f2,fft2 = tf.fourierPad(f,fft,len(fft)*9,ampliToExtrapolate)
+
+    fig,ax = lab.subplots(3)
+    ax[0].plot(f,np.real(fft),label="real")
+    ax[0].plot(f,np.imag(fft),'.',label="imag")
+
+    ax[1].plot(*tf.genTimeSeries(f,fft),ls='-.',label="noPad")
+    ax[1].plot(*tf.genTimeSeries(f2,fft2*5),label="padding")
+    ax[1].legend()
+
+    ax[2].plot(f2,np.real(fft2),label="real")
+    ax[2].plot(f2,np.imag(fft2),'.',label="imag")
+    ax[2].legend()
+
+    fig.show()
+
+
+    return f,fft,f2,fft2
+
+    
+    
+

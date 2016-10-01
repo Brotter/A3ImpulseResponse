@@ -7,8 +7,8 @@ Fits a variety of stuff to a spaceish separated input file
 #import useful stuff
 import sys
 import os
-from pylab import *
-from numpy import *
+import pylab as lab
+import numpy as np
 import scipy
 from scipy.optimize import leastsq
 import math as m
@@ -27,13 +27,16 @@ data_voltage_input=[]
 #define function we want to fit to
 #pe md as
 lambdaLin      = lambda p, x: p[0]*(x-p[1])+p[2]
-lambdaExpo     = lambda p, x: p[0]*(1-exp((x-p[1])*-p[2]))
-lambdaRayleigh = lambda p, x: ((x-p[1])/p[0]**2)*exp(-((x-p[1])**2)/(2*p[0]**2))
-lambdaMaxBoltz = lambda p, x: ((x-p[1])**2)*exp(-((x-p[1])**2)/(2*p[0]**2))/(p[0]**3)
-lambdaGaussian = lambda p, x: p[3]*exp(((x-p[1])/p[0])**2)+p[2]
-lambdaNormal   = lambda p, x: (1/(p[1]*np.sqrt(2*m.pi)))*exp(-1*((x-p[0])**2/(2*p[1]**2)))+p[2]
+lambdaExpo     = lambda p, x: p[0]*(1-np.exp((x-p[1])*-p[2]))
+lambdaRayleigh = lambda p, x: ((x-p[1])/p[0]**2)*np.exp(-((x-p[1])**2)/(2*p[0]**2))
+lambdaMaxBoltz = lambda p, x: ((x-p[1])**2)*np.exp(-((x-p[1])**2)/(2*p[0]**2))/(p[0]**3)
+lambdaGaussian = lambda p, x: p[3]*np.exp(((x-p[1])/p[0])**2)+p[2]
+lambdaNormal   = lambda p, x: (1/(p[1]*np.sqrt(2*m.pi)))*np.exp(-1*((x-p[0])**2/(2*p[1]**2)))+p[2]
 lambdaSin      = lambda p, x: p[1]*sin((2*m.pi*x)/p[0]+p[3])+p[2]
-lambdaPoly     = lambda p, x: p[0]*(x**2)+p[1]*x+p[2]
+lambdaPoly2    = lambda p, x: p[2]*(x**2)+p[1]*x+p[0]
+lambdaPoly3    = lambda p, x: p[3]*(x**3)+p[2]*(x**2)+p[1]*x+p[0]
+lambdaPoly4    = lambda p, x: p[4]*(x**4)+p[3]*(x**3)+p[2]*(x**2)+p[1]*x+p[0]
+lambdaDecay    = lambda p, x: p[0]*np.exp(-x/p[1])
 
 
 def fitLin(aDataX,aDataY,pGuess):
@@ -57,11 +60,17 @@ def fitNormal(aDataX,aDataY,pGuess): #3
 def fitSin(aDataX,aDataY,pGuess):
     return fitFunc(np.array(aDataX),np.array(aDataY),lambdaSin,pGuess)
 
-def fitPoly(aDataX,aDataY,pGuess):
-    return fitFunc(np.array(aDataX),np.array(aDataY),lambdaPoly,pGuess)
+def fitPoly2(aDataX,aDataY,pGuess):
+    return fitFunc(np.array(aDataX),np.array(aDataY),lambdaPoly2,pGuess)
 
+def fitPoly3(aDataX,aDataY,pGuess):
+    return fitFunc(np.array(aDataX),np.array(aDataY),lambdaPoly3,pGuess)
 
+def fitPoly4(aDataX,aDataY,pGuess):
+    return fitFunc(np.array(aDataX),np.array(aDataY),lambdaPoly4,pGuess)
 
+def fitDecay(aDataX,aDataY,pGuess):
+    return fitFunc(np.array(aDataX),np.array(aDataY),lambdaDecay,pGuess)
 
 
 
