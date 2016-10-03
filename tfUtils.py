@@ -795,6 +795,44 @@ def interp(xNew,xOld,yOld,right=0):
     return interpWave
 
 
+def fitAndRegenFFT(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1):
+    """
+    So far I can't find a good way to resample the cables, so I'm going to fit the
+    mangitude and then regenerate a causal waveform from that
+
+    """
+
+    magnitude = np.absolute(inputFFT)
+
+    pFit,rSq = mf.fitPoly4(inputF,magnitude,[0,0,0,0,0])
+    
+    timeSeries = np.arange(0,sampleLength)*sampleResolu
+    freqSeries = genFreqArray(timeSeries)
+
+    newMag = mf.lambdaPoly4(pFit,freqSeries)
+
+    for i in range(0,len(freqSeries)):
+        if freqSeries[i] > inputF[-1]:
+            newMag[i] = 0
+
+
+#    fig,ax = lab.subplots()
+#    ax.plot(inputF,magnitude,'.')
+#    ax.plot(freqSeries,newMag)
+#    fig.show()
+
+
+    
+    newReal = np.sqrt(newMag)
+    newReal[::2] *= -1
+    newImag = np.sqrt(newMag)
+    newReal[1::2] *= -1
+
+    return freqSeries,newReal+newImag*1j
+
+    
+
+
 def complexZeroPadAndResample(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1):
     """
     This is an important function for matching so I'll explain it:
@@ -906,7 +944,7 @@ def fourierExtrapolate(fftIn,numPads,fitStart=-1):
 #################################################
 
 
-def makeCausalFFT(fft,center):
+def makeCausalFFT(fft,tZero):
     """
     http://cdn.teledynelecroy.com/files/whitepapers/14-wp6paper_doshi.pdf
     
@@ -935,7 +973,7 @@ def makeCausalFFT(fft,center):
     for i in range(0,len(shifts)):
         shiftedFFT = fftPhaseShift(fft,shifts[i])
         shifted = fftw.irfft(shiftedFFT)
-        causalityRatio.append(np.sum(shifted[:center]**2)/np.sum(shifted[center:]**2))
+        causalityRatio.append(np.sum(shifted[:tZero]**2)/np.sum(shifted[tZero:]**2))
 
     #minimum is when things are "most causal" (second half biggest than first half)
     maxCausal = np.argmin(causalityRatio)
@@ -947,7 +985,7 @@ def makeCausalFFT(fft,center):
     return shiftedFFT
 
 
-def makeCausalTime(y,center):
+def makeCausalTime(y,tZero):
     """
     If you have the time series, this makes it easier (but slower!  Two FFTS!)
     
@@ -956,7 +994,7 @@ def makeCausalTime(y,center):
     """
 
     fft = fftw.rfft(y)
-    shifted = makeCausalFFT(fft,center)
+    shifted = makeCausalFFT(fft,tZero)
     yOut = fftw.irfft(shifted)
 
     return yOut

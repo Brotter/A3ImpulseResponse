@@ -226,39 +226,85 @@ def importScope(chan):
 
 
 #####################################
-def getCables(fileName,center,hanning=False):
+def getCables(fileName,tZero=False,hanning=False,resample=False):
+    """
+    A wrapper for getting the network analyzer data for the cables
+
+    if tZero is specified, it will try to phase shift it until it has peak causality (most power after tZero)
+
+    if hanning is specified, it will do a hanning window around the peak point
+    
+    Three different ways to resample it to the correct window and time binning:
+    False = nothing
+    if interp is specified, it will do a time series akima spline interpolation to get the correct
+       sampling rate and window length for the rest of the waveforms (on by default)
+    if fftZeroPad it will do an akima spline in the frequency domain and zero pad everything outside the range
+    if fftFit it will fit a poly4 to the magnitude and attempt to regenerate the signal like that
+          it also zero pads outside the range
+ 
+    """
+
+
     cableFreq,cableGainLin,cablePhase = s2pParser(cablesBaseDir + fileName)
 
     #cables from network analyzer were stored in gain and phase...
     cableFFT = tf.gainAndPhaseToComplex(cableGainLin,cablePhase)
     
+    fOut = cableFreq
+    fftOut = cableFFT
 
     #For the long cables, there are two time domain pulses for some stupid reason
     #Maybe it wraps around?  Definitely an artifact at least... Windowing it out seems fair
     if hanning==True:
-        hanningWidth = 300
-        center = hanningWidth/2-1
-        x,y = tf.genTimeSeries(cableFreq,cableFFT)
+        print "Doing hanning window"
+        hanningWidth = 100
+        x,y = tf.genTimeSeries(fOut,fftOut)
+        startLength = len(x)
         x,y = tf.hanningWindow(x,y,np.argmax(y),totalWidth=hanningWidth,slope=50)
-        cableFreq,cableFFT = tf.genFFT(x,y)
+        x,y = tf.zeroPadEqual(x,y,startLength)
+        if tZero != False:
+            tZero = len(x)/2
+        fOut,fftOut = tf.genFFT(x,y)
 
 
     #make it causal so it is all pretty :) 
-    cableFFT  = tf.makeCausalFFT(cableFFT,center)
+    if tZero != False:
+        print "Making Causal with tZero=",tZero
+        fftOut  = tf.makeCausalFFT(fftOut,tZero)
 
 
+
+
+    #Resampling
+    ##########################
     #this might do bad things...
     #the goal of it was to get the time binning and window length the same
     #for an irfft, but this just worstens the fractional phase offset error at first...
     #-> Yeah even for a "phase aligned" waveform it messes it up
-#    cableF2,cableFFT2 = tf.complexZeroPadAndResample(cableFreq,cableFFT)
+    if resample=="fftZeroPad":
+        fOut,fftOut = tf.complexZeroPadAndResample(fOut,fftOut)
 
     #I just want 0.1ns sampling and 1024 samples in the time domain so I'll just do that
-    x,y = tf.genTimeSeries(cableFreq,cableFFT)
-    yInterp = Akima1DInterpolator(x,y)
-    newX = np.arange(0,1024)*0.1
-    newY = np.nan_to_num(yInterp(newX))
-    fOut,fftOut = tf.genFFT(newX,newY)
+    #This ALSO introduces a bunch of weird frequency response
+    elif resample=="interp":
+        print "Interpolating..."
+        x,y = tf.genTimeSeries(fOut,fftOut)
+        peak = np.argmax(y)
+        yInterp = Akima1DInterpolator(x,y) #has a weird frequency dependence
+#        yInterp = interp1d(x,y,kind="quadratic") #is weird in a different way
+        newX = (np.arange(-512,512)*0.1)+x[peak]
+        if newX[0]<0:
+            newX -= newX[0]
+        newY = np.nan_to_num(yInterp(newX))
+        fOut,fftOut = tf.genFFT(newX,newY[::-1])
+
+
+
+    #Last thing to try is fitting and reinterpolating it
+    elif resample=="fftFit":
+        fOut,fftOut = tf.fitAndRegenFFT(fOut,fftOut)
+
+
 
     return fOut,fftOut
 
@@ -492,7 +538,7 @@ def doSigChainWithCables(chan):
     global P2SFFT
     if type(P2SF) != np.ndarray:
         print "Getting Pulser to Scope Cables..."
-        P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p",17)
+        P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
 
 
 
@@ -502,12 +548,13 @@ def doSigChainWithCables(chan):
 
 
     #Get the cable's (H(f) transfer function for pulser to AMPA)
-    # again, the 650 is from tf.compPhaseShifts3() (it should actually be 650.5, but can't be)
+    # again, the 973 is from tf.compPhaseShifts3()
     global P2AF
     global P2AFFT
     if type(P2AF) != np.ndarray:
         print "Getting Pulser to Ampa Cables..."
-        P2AF,P2AFFT= getCables("A-C_PULSER-TEST_66DB.s2p",650,hanning=True)
+        P2AF,P2AFFT= getCables("A-C_PULSER-TEST_66DB.s2p",tZero=True,hanning=True,resample="fftFit")
+
     
     #convolve it with that transfer function to get pulse at AMPA
     ampaInputFFT = P2AFFT*pulseDeconvFFT
@@ -519,13 +566,19 @@ def doSigChainWithCables(chan):
 
     surfF,surfFFT = tf.genFFT(surfX,surfY)
 
+
     #deconvolve signal chain transfer function out of that!
     tfFFT = surfFFT/ampaInputFFT
 
+    #fix the infinities and nans
+    tfFFT[np.isposinf(np.real(tfFFT))] = 0
+    tfFFT[np.isneginf(np.real(tfFFT))] = 0
+    tfFFT = np.nan_to_num(tfFFT)
+
     #zero out everything above 1.3GHz because that's our nyquist limit
- #   for i in range(0,len(surfF)):
- #       if surfF[i] > 1.3:
- #           tfFFT[i] /= 1e6
+    for i in range(0,len(surfF)):
+        if surfF[i] > 1.3:
+            tfFFT[i] /= 1e6
 
     #change it back to time domain
     tfY = tf.fftw.irfft(tfFFT)
@@ -535,9 +588,11 @@ def doSigChainWithCables(chan):
 #    tfY = tf.hanningTail(tfY,200,100)
     
 
-
-
     return surfX,tfY,surfF,tfFFT 
+
+
+
+
 
 ##########################
 def doRoofAntWithCables():
@@ -634,10 +689,19 @@ def doSigChainAndAntenna(chan):
     #convolve the two (full ANITA3 transfer function!)
     a3F = sigChainF
     a3FFT = sigChainFFT * antFFT
+
     #clean it up a bit
+    #something was adding a ton of 1.25GHz noise
+#    for i in range(0,len(a3FFT)):
+#        if a3F[i] > 1.1:
+#            a3FFT[i] /= 1e4
+
 #    a3FFT = np.concatenate((a3FFT[:171],np.zeros(342))) #this isn't causal...
     a3X = antX
     a3Y = tf.fftw.irfft(a3FFT)
+
+
+    
 
     #make it look nice and cut off the junk at the end
 #    a3Y = np.roll(a3Y,40-np.argmax(a3Y))
@@ -794,7 +858,7 @@ def saveAllNicePlots(allChans):
         ax[0].legend()
         ax[0].set_xlabel("time (ns)")
         ax[0].set_ylabel("voltage (arbitrary)")
-        ax[0].set_xlim([-20,60])
+#        ax[0].set_xlim([-20,60])
         
         ax[1].cla()
         ax[1].plot(a3F,tf.calcLogMag(a3F,a3FFT),label="ANITA3",color="red")
