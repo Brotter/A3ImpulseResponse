@@ -576,9 +576,9 @@ def doSigChainWithCables(chan):
     tfFFT = np.nan_to_num(tfFFT)
 
     #zero out everything above 1.3GHz because that's our nyquist limit
-    for i in range(0,len(surfF)):
-        if surfF[i] > 1.3:
-            tfFFT[i] /= 1e6
+#    for i in range(0,len(surfF)):
+#        if surfF[i] > 1.3:
+#            tfFFT[i] /= 1e6
 
     #change it back to time domain
     tfY = tf.fftw.irfft(tfFFT)
@@ -657,16 +657,21 @@ def doPalAnt(chan):
     #this also doesn't work... maybe I can just do it in group delay and magnitude?
     #basically since square roots are poorly defined in complex space, you NEED to do it with
     # the sines and cosines, which I added to tfUtils!
-    #antTFFFT = tf.sqrtOfFFT2(antTFFFT)
+    antTFFFT = tf.sqrtOfFFT2(antTFFFT)
+
+
+    #Make causal?
+    antTFFFT = tf.makeCausalFFT(antTFFFT,np.argmax(tf.fftw.irfft(antTFFFT)))
 
     #I have to get the time domain again after that, which is time reversed because of math
     antTFY = tf.fftw.irfft(antTFFFT)
-    #antTFY = antTFY[::-1]
     
     
     #clean up the tail and make it start at the beginning
-#    antTFY = np.roll(antTFY,40-np.argmax(antTFY))
-#    antTFY = tf.hanningTail(antTFY,370,30)
+    print "doing hanning window"
+    antTFY = np.roll(antTFY,20-np.argmax(antTFY))
+    antTFY = tf.hanningTail(antTFY,370,30)
+    antTFFFT = tf.fftw.rfft(antTFY)
 
 
     return antTFX,antTFY,antTFF,antTFFFT
@@ -837,17 +842,24 @@ def saveAllNicePlots(allChans):
         a1YInterp = tf.interp(a3X,a1X,a1Y)
     
 
+        #scale them
+        a1MaxVal = np.max(a1Y)
+        a3MaxVal = np.max(a3Y)
+        scale = a1MaxVal/a3MaxVal
+        
+
+        #make them start at the beginning
+        argMax = np.argmax(a3Y)
+        a3Y = np.roll(a3Y,-argMax+100)
+
+
         #line them up
         a1Max = a1X[np.argmax(a1Y)]
         a3Max = a3X[np.argmax(a3Y)]
         maxDiff = a1Max-a3Max
         maxDiff += 0.3 #just a litte nudge
 
-        #scale them
-        a1MaxVal = np.max(a1Y)
-        a3MaxVal = np.max(a3Y)
-        scale = a1MaxVal/a3MaxVal
-        
+
 
         #plot it
         ax[0].cla()
@@ -861,8 +873,8 @@ def saveAllNicePlots(allChans):
 #        ax[0].set_xlim([-20,60])
         
         ax[1].cla()
-        ax[1].plot(a3F,tf.calcLogMag(a3F,a3FFT),label="ANITA3",color="red")
-        ax[1].plot(a1F,tf.calcLogMag(a1F,a1FFT)+7.5,label="ANITA1",color="green") #line em up with nudge
+        ax[1].plot(a3F,tf.calcLogMag(a3F,a3FFT)+20,label="ANITA3",color="red")
+        ax[1].plot(a1F,tf.calcLogMag(a1F,a1FFT),label="ANITA1",color="green") #line em up with nudge
         ax[1].legend()
         ax[1].set_xlabel("frequency (GHz)")
         ax[1].set_ylabel("gain (dB)")
@@ -910,7 +922,15 @@ def plotCompare(allChans):
 
     for chan in chans:
 
-        f,logMag = tf.genLogMag(allChans[chan][0],allChans[chan][1])
+        waveX = allChans[chan][0]
+        waveY = allChans[chan][1]
+        
+        #make them start at the beginning
+        argMax = np.argmax(waveY)
+        waveY = np.roll(waveY,-argMax+100)
+
+
+        f,logMag = tf.genLogMag(waveX,waveY)
         axFFT.plot(f,logMag)
         
 #        if any(x for x in badChans if chan in x):
@@ -927,9 +947,9 @@ def plotCompare(allChans):
             axIndex = 2
 
         if   (chan[3] == "V"):
-                axV[axIndex].plot((np.arange(0,lenWave)-argMax)*0.1,allChans[chan][1],label=chan[:2])
+                axV[axIndex].plot(waveX,waveY,label=chan[:2])
         elif (chan[3] == "H"):
-                axH[axIndex].plot((np.arange(0,lenWave)-argMax)*0.1,allChans[chan][1],label=chan[:2])
+                axH[axIndex].plot(waveX,waveY,label=chan[:2])
 
 
 
