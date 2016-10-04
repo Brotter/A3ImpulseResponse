@@ -800,29 +800,39 @@ def fitAndRegenFFT(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1):
     So far I can't find a good way to resample the cables, so I'm going to fit the
     mangitude and then regenerate a causal waveform from that
 
+    This ends up doing weird things, so lets fit the last 1/4th, then hanning window the end
+
     """
+
+    length = len(inputF)
+    dF = inputF[1]-inputF[0]
+
+    extrapF = np.arange(inputF[-1]+dF,5,dF)
+    
+    inputF   = np.concatenate((inputF,extrapF))
+    inputFFT = np.concatenate((inputFFT,np.zeros(len(extrapF))))
 
     magnitude = np.absolute(inputFFT)
 
-    pFit,rSq = mf.fitPoly4(inputF,magnitude,[0,0,0,0,0])
+    pFit,rSq = mf.fitPoly3(inputF,magnitude,[0,0,0,0])
     
     timeSeries = np.arange(0,sampleLength)*sampleResolu
     freqSeries = genFreqArray(timeSeries)
 
-    newMag = mf.lambdaPoly4(pFit,freqSeries)
+    newMag = mf.lambdaPoly3(pFit,freqSeries)
 
-    for i in range(0,len(freqSeries)):
-        if freqSeries[i] > inputF[-1]:
-            newMag[i] = 0
+    newMag = hanningTail(newMag,len(newMag)/2,20)
 
-
-#    fig,ax = lab.subplots()
-#    ax.plot(inputF,magnitude,'.')
-#    ax.plot(freqSeries,newMag)
-#    fig.show()
-
+    newMag[newMag<0] = 0
 
     
+
+    fig,ax = lab.subplots()
+    ax.plot(inputF,magnitude,'.')
+    ax.plot(freqSeries,newMag)
+    fig.show()
+
+
     newReal = np.sqrt(newMag)
     newReal[::2] *= -1
     newImag = np.sqrt(newMag)

@@ -854,9 +854,9 @@ def saveAllNicePlots(allChans):
 
 
         #line them up
-        a1Max = a1X[np.argmax(a1Y)]
-        a3Max = a3X[np.argmax(a3Y)]
-        maxDiff = a1Max-a3Max
+        a1Min = a1X[np.argmin(a1Y)]
+        a3Min = a3X[np.argmin(a3Y)]
+        maxDiff = a1Min-a3Min
         maxDiff += 0.3 #just a litte nudge
 
 
@@ -879,7 +879,7 @@ def saveAllNicePlots(allChans):
         ax[1].set_xlabel("frequency (GHz)")
         ax[1].set_ylabel("gain (dB)")
         ax[1].set_xlim([0,2])
-        ax[1].set_ylim([10,80])
+        ax[1].set_ylim([-10,60])
         ax[1].set_autoscale_on(False)
     
         fig.savefig("autoPlots/"+chan+".png")
