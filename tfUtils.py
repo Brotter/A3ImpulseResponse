@@ -6,6 +6,7 @@ from scipy.interpolate import Akima1DInterpolator
 
 import copy
 
+import seaborn as sns
 
 try:
     import pyfftw.interfaces.numpy_fft as fftw
@@ -76,17 +77,44 @@ def genLogMag(graphX,graphY):
 def calcLogMag(graphF,graphFFT):
     """
     Returns Power Spectral Density (dBm/Hz)
+    dF is likely in GHz (because thats how I roll) so you need to scale that for this to be dBm/Hz
+    This also assumes you're giving it voltage in VOLTS
+
+
+    http://www.hep.ucl.ac.uk/~rjn/saltStuff/fftNormalisation.pdf
+    time-integral squared amplitude
+
+    
     """
 
-    dF = graphF[1]-graphF[0]
-    #unfold spectrum:
+    dF = (graphF[1]-graphF[0])*1e9
+    #unfold spectrum (This is done for you in fftw.rfft()):
     #1) discard negative frequencies (second half)
     #2) double all positive frequencies (but not DC (bin 0) and nyquist (bin length/2+1)
     #3) now you can do the log mag
 
-    return 10.*np.log10((np.abs(graphFFT)**2/(50.*1000.*dF)))
-    
+    #do the calculation
+    #Power = V**2 / R
+    #Watts = V**2 / ohms
+    #Transfers in fourier space so don't worry
+    power = ( np.abs(graphFFT) )**2 #in watts
+    power /= 1000. #in mW
+    #dBm = 10.*log10(Power(in mW)/1mW)
+    #"spectral power" -> divide it by frequency
+    dBm = 10.*np.log10(power)
 
+    return dBm/dF
+    
+def calcLinMag(graphF,graphSpecMag):
+    """
+    It might be nice to have a way to reverse this (and return power in watts)
+    """
+    dF = graphF[1]-graphF[0]
+
+    graphLogMag = graphSpecMag*dF
+    power = 10**(graphLogMag)/10.
+    
+    return power
 
 
 def genGaussian(graphX,width=10,center=False):
@@ -479,6 +507,8 @@ def convolve(grA,grB):
             stop =1
 
     return np.array(grOut)
+
+    
 
     
 
@@ -997,7 +1027,7 @@ def makeCausalFFT(fft,tZero):
 
 def makeCausalTime(y,tZero):
     """
-    If you have the time series, this makes it easier (but slower!  Two FFTS!)
+    If you have the time series, this makes it easier (but slightly slower!  Two more FFTS!)
     
     you have to provide the pulse (in bins)
 
@@ -1105,3 +1135,32 @@ def compPhaseShifts3(y,center,save=False):
 
 
     return causalityRatio,shifted
+
+
+def compPhaseShifts4(y):
+
+    sns.set_palette(sns.color_palette("husl",20))
+
+    fig,ax = lab.subplots()
+    
+    fft = fftw.rfft(y)
+    shifts = np.arange(-np.pi,np.pi,0.01)
+
+
+    for tZero in range(310,330):
+        print tZero
+        causalityRatio = []
+
+        for i in range(0,len(shifts)):
+            shiftedFFT = fftPhaseShift(fft,shifts[i])
+            shifted = fftw.irfft(shiftedFFT)
+            causalityRatio.append(np.sum(shifted[:tZero]**2)/np.sum(shifted[tZero:]**2))
+
+
+
+        ax.plot(shifts,causalityRatio,label=tZero)
+
+    ax.legend()
+    fig.show()
+
+    

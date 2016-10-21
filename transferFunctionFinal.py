@@ -43,8 +43,8 @@ This is a selection of a much larger code base that does all the work, which is 
 cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
 
 
-#signal chain data
-waveformDir = "/Users/brotter/benCode/impulseResponse/integratedTF/waveforms/"
+#signal chain data (57dB seems to be a happy middle power)
+waveformDir = "/Users/brotter/benCode/impulseResponse/integratedTF/waveforms_57dB/"
 
 #directories with antenna pulse data
 localDir = "/Volumes/BenANITA3Data/"
@@ -311,9 +311,9 @@ def getCables(fileName,tZero=False,hanning=False,resample=False):
 ########################
 def s2pParser(fileName):
 
-    freq = [0]
-    gainLin = [0]
-    phase = [0]
+    freq = []
+    gainLin = []
+    phase = []
     with open(fileName) as inFile:
         for line in inFile:
             if (line[0] !='!' and line[0] != '#'):
@@ -475,7 +475,7 @@ def processWaveform(graphT,graphV,source):
         print "Hanning: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
 
 
-    #find max and do hanning window with SUPER SHART EDGES(cuts waveform to desired length too)
+    #find max and do hanning window with SUPER SHARP EDGES(cuts waveform to desired length too)
     if kSlice:
         #I have to zero pad out so I can select the center of the window
         graphT,graphV = tf.zeroPadEqual(graphT,graphV,1024*3)
@@ -517,19 +517,39 @@ P2AF = False
 P2AFFT = False
 
 ##################################
-def doSigChainWithCables(chan):
+def doSigChainWithCables(chan,savePlots=False):
     #phase shifts are likely pointless!
     #they were: scopeFFT=1.26
     #           phaseShift=1.698
 
 
+    
     #get scope data from waveforms (extracted from raw data from another script)
     scopeRawX,scopeRawY,scopeRawF,scopeRawFFT = importScope(chan)
     scopeX,scopeY = processWaveform(scopeRawX,scopeRawY,"calScope")
     scopeF,scopeFFT = tf.genFFT(scopeX,scopeY)
+
+    return scopeX,scopeY
+
+    if savePlots:
+        fig,ax = lab.subplots(2,figsize=(11,8.5))
+        ax[0].set_title("Raw Signal Chain Calibration Pulser")
+        ax[0].plot(scopeRawX,scopeRawY,label="raw scope pulse")
+        ax[0].plot(scopeX,scopeY,label="processed scope pulse")
+        ax[0].set_xlabel("Time (ns)")
+        ax[0].set_ylabel("Voltage (V)")
+        ax[0].legend()
+        ax[1].plot(scopeRawF,tf.calcLogMag(scopeRawF,scopeRawFFT),label="raw scope pulse")
+        ax[1].plot(scopeF,tf.calcLogMag(scopeF,scopeFFT),label="processed scope pulse")
+        ax[1].set_xlabel("Frequency (GHz)")
+        ax[1].set_ylabel("Spectral Power (dBm/Hz)")
+        ax[1].legend()
+        fig.savefig("plots/doSigChainWithCables_A.png")
+        
+
+
     #1.26 is the max coherance phase?
 #    scopeFFT = tf.fftPhaseShift(scopeFFT,1.26)
-
 
     #Get the cable's (H(f) transfer function for pulser to scope)
     #The 17 (for the "center") is from tf.compPhaseShifts3(), which makes a nice film of where the 
@@ -545,6 +565,7 @@ def doSigChainWithCables(chan):
     #deconvolve cable pulse * cable = scope -> pulse = scope/cable
     #finds just the pulser impulse
     pulseDeconvFFT = scopeFFT/P2SFFT
+
 
 
     #Get the cable's (H(f) transfer function for pulser to AMPA)
@@ -789,7 +810,22 @@ def doTheWholeShebang():
     return allChans
 
 
+########################
+def findSignalToNoise():
+    """
+    I need to find the signal to noise ratio of the signal to do a Weiner Deconvolution
+    Basically, out of band our deconvolutions introduce noise (small/small = big possibly)
+    so we need to take the SNR into account.
 
+    The signal in our transfer function is actually the signal in the input pulse!
+    It is super well averaged (so there is basically no noise)
+
+    The noise in our transfer function then will be whatever the noise spectrum of the terminated
+    SURF input is?  Basically doing an average of all the FFTs of a bunch of waveforms with no signal...
+
+    """
+
+    
 
 
 
@@ -1099,3 +1135,101 @@ def fourierCausalPadding():
     
     
 
+
+def calibrationPulseSignal(chan):
+
+    #get scope data from waveforms (extracted from raw data from another script)
+    scopeRawX,scopeRawY,scopeRawF,scopeRawFFT = importScope(chan)
+    scopeX,scopeY = processWaveform(scopeRawX,scopeRawY,"calScope")
+    scopeF,scopeFFT = tf.genFFT(scopeX,scopeY)
+    #1.26 is the max coherance phase?
+#    scopeFFT = tf.fftPhaseShift(scopeFFT,1.26)
+
+
+    #Get the cable's (H(f) transfer function for pulser to scope)
+    #The 17 (for the "center") is from tf.compPhaseShifts3(), which makes a nice film of where the 
+    # phase center is
+    global P2SF
+    global P2SFFT
+    if type(P2SF) != np.ndarray:
+        print "Getting Pulser to Scope Cables..."
+        P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
+
+
+
+    #deconvolve cable pulse * cable = scope -> pulse = scope/cable
+    #finds just the pulser impulse
+    pulseDeconvFFT = scopeFFT/P2SFFT
+
+    return P2SF,pulseDeconvFFT
+
+
+def weinerDeconv(sigInX,sigInY,chan):
+    """
+    A weiner deconvolution!
+    sigIn: The signal you want to deconvolve (from SURF probably, in time domain?)
+    chan, which loads:
+    tfIn:  The transfer function of the system (from autoPlots, in time domain)
+    noiseIn: The snr for each frequency (from surfNoise, in log mag)
+    
+    and uses those to generate snrIn, which is then used to do deconvolution
+    """
+    baseDir = "/Users/brotter/Science/ANITA/ANITA3/benCode/analysis/impulseResponse/integratedTF/"
+    tfIn = np.loadtxt(baseDir+"autoPlots/A3ImpulseResponse/"+chan+".txt").T
+    noiseInF,noiseLogMag = np.loadtxt(baseDir+"noiseCal/chan_"+chan+".txt").T
+
+    tfF,tfFFT = tf.genFFT(*tfIn)
+    tfMag = np.absolute(tfFFT)
+
+    #noise from the surf is stored in dBm!!!! (not dBm/Hz)
+    noiseF = noiseInF/1000. #in us / MHz which is stupid, so I'll change it (power already f dependant)
+    noiseMag = (10**(noiseLogMag))/1000. #already in dBm I think? so just change to Watts...
+
+    sigX,sigY,sigF,sigFFT = importSurf(chan) #this has sigY in Volts (thus sigFFT is in that unit scale too)
+    signalMag = (np.abs(sigFFT)**2) #this is how you get Watts from that!
+    signalMag = signalMag**10
+    signalMag *= 12**10
+    signalMag[:16] = np.ones(16)*signalMag[0]
+    #lets just say this pulser thing has low frequency power
+
+
+    snrMag = signalMag / noiseMag
+
+    #weiner deconv!
+    #G is the deconvolution multiplier I guess
+    weiner = (tfMag**2)
+    weiner /= (tfMag**2)+(1./snrMag)
+    G = weiner/tfFFT
+
+
+    sigInF,sigInFFT = tf.genFFT(sigInX,sigInY)
+
+    sigOutFFT = sigInFFT * G
+    sigOutX,sigOutY = tf.genTimeSeries(sigInF,sigOutFFT)
+    
+
+    return sigOutX,sigOutY,sigInFFT,sigOutFFT,G,snrMag,tfMag
+
+def testWeiner():
+
+    chan = "01BH"
+    x,y,f,fft = importSurf(chan)
+    outX,outY,a,b,c,d,e = weinerDeconv(x,y,chan)
+
+    inOutScale = np.max(y) / np.max(outY)
+
+    lab.close("all")
+    fig,ax = lab.subplots(2)
+    ax[0].plot(np.log10(a),label="in")
+    ax[0].plot(np.log10(b),label="out")
+    ax[0].plot(np.log10(c),label="g")
+    ax[0].plot(np.log10(d),label="snr")
+    ax[0].plot(np.log10(e),label="tf")
+    ax[0].legend()
+    ax[1].plot(x,y,label="measured Pulse")
+    ax[1].plot(outX,outY*inOutScale,label="deconvolved")
+    ax[1].legend()
+
+    fig.show()
+
+    return outX,outY
