@@ -85,9 +85,11 @@ def calcLogMag(graphF,graphFFT):
     time-integral squared amplitude
 
     
+    I somehow messed this up
     """
 
-    dF = (graphF[1]-graphF[0])*1e9
+    dF = (graphF[1]-graphF[0])
+    return 10.*np.log10((np.abs(graphFFT)**2/(50.*1000.*dF)))
     #unfold spectrum (This is done for you in fftw.rfft()):
     #1) discard negative frequencies (second half)
     #2) double all positive frequencies (but not DC (bin 0) and nyquist (bin length/2+1)
@@ -97,13 +99,11 @@ def calcLogMag(graphF,graphFFT):
     #Power = V**2 / R
     #Watts = V**2 / ohms
     #Transfers in fourier space so don't worry
-    power = ( np.abs(graphFFT) )**2 #in watts
-    power /= 1000. #in mW
     #dBm = 10.*log10(Power(in mW)/1mW)
     #"spectral power" -> divide it by frequency
-    dBm = 10.*np.log10(power)
+#    dBm = 10.*np.log10(power)
 
-    return dBm/dF
+#    return dBm
     
 def calcLinMag(graphF,graphSpecMag):
     """
@@ -333,6 +333,77 @@ def timePhaseShift(Y,shift):
     fft = gainAndPhaseToComplex(gainLin,phase)
     outY = fftw.irfft(fft)
     return outY
+
+def accumulatePhase(phase):
+    """
+    If you're going to resample the phase, you need it to take the wraps into account!
+    The easiest way to do this is to "accumulate" the phase.  Basically, when it wraps upwards
+    add +2pi to all all subsequent values, and vice versa
+
+    This takes in the phase array and returns that accumulated array
+
+    """
+
+    phaseOut = copy.deepcopy(phase)
+
+    for pt in range(1,len(phase)):
+        if ( (phase[pt-1] - phase[pt]) > np.pi ):
+            for pt2 in range(pt,len(phase)):
+                phaseOut[pt2] += np.pi*2
+        elif ( (phase[pt] - phase[pt-1]) > np.pi ):
+            for pt2 in range(pt,len(phase)):
+                phaseOut[pt2] -= np.pi*2
+
+    return phaseOut
+                   
+
+def regenerateCablePhase(phase,dF=5000./512.,length=513):
+    """
+    A cable has a very flat group delay (Tg(w)), so we should, instead of trying to resample it,
+    just regenerate the phase entirely of a cable using the measured phase
+    
+    Also, since I'm doing this for the transfer function most likely, I'm going to set the defaults
+    that everything else has:
+    time domain: 10GS/S and n=1024
+    freq domain: dF = 5000/512 and length=513
+
+    """
+
+    aPhase = accumulatePhase(phase)
+    groupDelay = np.diff(aPhase)
+    #only use the first half for determining the mean, since it gets noisier at the ends 
+    groupDelayMean = np.mean(groupDelay[:len(groupDelay)/2])
+    
+    #now, the DC is going to be zero (just because) and everything else is going to DECREASE from there
+    phaseOut = np.arange(0,length)*(-groupDelayMean)*dF
+
+    return phaseOut
+
+
+
+def regenerateCableLinMag(f,linMag,dF=5000./512.,length=513):
+    """
+    Just like the phase, I need to be able to regenerate the cable linear magnitude.
+
+    This one gets the frequency too because I don't know where the boundries of the measurement are
+    offhand and want to be able to determine them
+
+    """
+
+    linMagInterp = Akima1DInterpolator(f*1000.,linMag)
+
+    outF = np.arange(0,length)*dF
+    newLinMag = linMagInterp(outF)
+
+    #DC should be zero
+    newLinMag[0] = 0
+
+    #out of range it should be zero (nan_to_num does that hooray!)
+    newLinMag = np.nan_to_num(newLinMag)
+
+    return newLinMag
+
+
 
 def gainAndPhaseToComplex(gainLin,phase):
     real = []

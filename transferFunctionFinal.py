@@ -222,12 +222,42 @@ def importScope(chan):
     return dataX,dataY,dataF,dataFFT
 
 
+#################################################
+def getCables(fileName,dF=5000./512.,length=513):
+    """
+    New getCables():
+
+    imports the data (correctly with the s2pParser fix), then resamples the gain and phase
+    to meet the specified dF and length (which should stay constant because the time domain I choose defines
+    them)
+    phase -> just a constant group delay (and I don't care about absolute phase)
+    gain -> interpolated inside the range you can, zero outside? (sure why not)
+
+    Lets skip causality for now (that seems to be a bigger problem at the end anyway)
+
+    """
+
+
+    cableFreq,cableGainLin,cablePhase = s2pParser(cablesBaseDir + fileName)
+
+    cableNewFreq = np.arange(0,length)*dF
+    cableNewPhase = tf.regenerateCablePhase(cablePhase)
+    cableNewGainLin = tf.regenerateCableLinMag(cableFreq,cableGainLin)
+
+    cableFFT = tf.gainAndPhaseToComplex(cableNewGainLin,cableNewPhase)
+
+    return cableNewFreq,cableFFT
+
 
 
 
 #####################################
-def getCables(fileName,tZero=False,hanning=False,resample=False):
+def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
     """
+
+    I'm going to depreciate this because it doesn't really work: use getCables() instead
+
+
     A wrapper for getting the network analyzer data for the cables
 
     if tZero is specified, it will try to phase shift it until it has peak causality (most power after tZero)
@@ -529,7 +559,6 @@ def doSigChainWithCables(chan,savePlots=False):
     scopeX,scopeY = processWaveform(scopeRawX,scopeRawY,"calScope")
     scopeF,scopeFFT = tf.genFFT(scopeX,scopeY)
 
-    return scopeX,scopeY
 
     if savePlots:
         fig,ax = lab.subplots(2,figsize=(11,8.5))
@@ -558,7 +587,8 @@ def doSigChainWithCables(chan,savePlots=False):
     global P2SFFT
     if type(P2SF) != np.ndarray:
         print "Getting Pulser to Scope Cables..."
-        P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
+#        P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
+        P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p")
 
 
 
@@ -574,7 +604,8 @@ def doSigChainWithCables(chan,savePlots=False):
     global P2AFFT
     if type(P2AF) != np.ndarray:
         print "Getting Pulser to Ampa Cables..."
-        P2AF,P2AFFT= getCables("A-C_PULSER-TEST_66DB.s2p",tZero=True,hanning=True,resample="fftFit")
+#        P2AF,P2AFFT= getCables("A-C_PULSER-TEST_66DB.s2p",tZero=True,hanning=True,resample="fftFit")
+        P2AF,P2AFFT= getCables("A-B_PULSER-TEST_0DB.s2p")
 
     
     #convolve it with that transfer function to get pulse at AMPA
