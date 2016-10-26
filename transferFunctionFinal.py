@@ -712,12 +712,12 @@ def doPalAnt(chan):
     antTFFFT = tf.sqrtOfFFT2(antTFFFT)
 
 
-    #Make causal?
-    antTFFFT = tf.makeCausalFFT(antTFFFT,np.argmax(tf.fftw.irfft(antTFFFT)))
+    #Make causal?  no probably not, that seems like a "last thing you do" sort of technique
+#    antTFFFT = tf.makeCausalFFT(antTFFFT,np.argmax(tf.fftw.irfft(antTFFFT)))
 
-    #I have to get the time domain again after that, which is time reversed because of math
+    #I have to get the time domain again after that
     antTFY = tf.fftw.irfft(antTFFFT)
-    
+
     
     #clean up the tail and make it start at the beginning
     print "doing hanning window"
@@ -726,7 +726,7 @@ def doPalAnt(chan):
     antTFFFT = tf.fftw.rfft(antTFY)
 
 
-    return antTFX,antTFY,antTFF,antTFFFT
+    return antTFX,antTFY#,antTFF,antTFFFT
 
 
 
@@ -839,6 +839,47 @@ def doTheWholeShebang():
     writeAll(allChans)
 
     return allChans
+
+#####################
+def doAllSigChains():
+    """
+    just does all the signal chains without the antennas
+    """
+    chans = np.loadtxt("chanList.txt",dtype=str)
+    allChans = {}
+    for chan in chans:
+        try:
+            allChans[chan] = doSigChainWithCables(chan)
+        except:
+            print chan+" FAILED************************************************"
+
+    return allChans
+
+####################
+def doAllAntennas():
+    """
+    just does all the palestine antennas
+    """
+    chans = np.loadtxt("chanList.txt",dtype=str)
+    allChans = {}
+    for chan in chans:
+        try:
+            allChans[chan] = doPalAnt(chan)
+        except:
+            print chan+" FAILED************************************************"
+
+    return allChans
+
+
+def plotAllAntennas(allAnts):
+    fig,ax = lab.subplots(2)
+    for chan in allAnts:
+        if chan[-1] == "H":
+            ax[0].plot(allAnts[chan][0],allAnts[chan][1])
+        else:
+            ax[1].plot(allAnts[chan][0],allAnts[chan][1])
+
+    fig.show()
 
 
 ########################

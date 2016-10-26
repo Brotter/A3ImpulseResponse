@@ -85,7 +85,7 @@ def calcLogMag(graphF,graphFFT):
     time-integral squared amplitude
 
     
-    I somehow messed this up
+    I somehow messed this up?
     """
 
     dF = (graphF[1]-graphF[0])
@@ -405,17 +405,16 @@ def regenerateCableLinMag(f,linMag,dF=5000./512.,length=513):
 
 
 
-def gainAndPhaseToComplex(gainLin,phase):
-    real = []
-    imag = []
-    for i in range(0,len(gainLin)):
-        real.append(gainLin[i]*np.sin(phase[i]))
-        imag.append(gainLin[i]*np.cos(phase[i]))
-  
-    return np.array(real)+np.array(imag)*1j
-
 
 def complexToGainAndPhase(fft):
+    """
+    the gain and phase are polar representations of the real/imag values on the complex plane
+
+    np.angle = "the counterclockwise angle from the positive real axis on the complex plane"
+
+    That seems like a fine convention to stick to, I'm sure other people use it too
+    """
+
     gainLin = []
     phase = []
     for i in range(0,len(fft)):
@@ -426,6 +425,21 @@ def complexToGainAndPhase(fft):
 #    phase = unwrapPhase(phase)
 
     return np.array(gainLin),np.array(phase)
+
+
+def gainAndPhaseToComplex(gainLin,phase):
+    """
+    Just need to follow the conventions from complexToGainAndPhase() which is defined by np.angle
+    """
+
+    real = []
+    imag = []
+    for i in range(0,len(gainLin)):
+        imag.append(gainLin[i]*np.sin(phase[i]))
+        real.append(gainLin[i]*np.cos(phase[i]))
+  
+    return np.array(real)+np.array(imag)*1j
+
 
 
 
