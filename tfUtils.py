@@ -1,8 +1,19 @@
+"""
+  Ben Rotter - BenJRotter@gmail.com - University of Hawaii at Manoa
+
+  A collection of functions for doing fourier domain manipulation
+  Used primarily for generating ANITA3 transfer functions
+  Recreates many things in Ryan Nichol's FFTtools, plus a bunch of
+  useful things that I couldn't find in there
+  
+  Edited by John Russell.
+"""
+
 import numpy as np
 import pylab as lab
 import scipy.signal as signal
-from scipy.interpolate import interp1d
-from scipy.interpolate import Akima1DInterpolator
+from scipy import interpolate
+from scipy.interpolate import interp1d, Akima1DInterpolator
 
 import copy
 
@@ -18,26 +29,13 @@ import cmath #for doing complex square root
 
 import benMathFit as mf
 
-#######################################################################
-#
-#  Ben Rotter - BenJRotter@gmail.com - University of Hawaii at Manoa
-#
-#  A collection of functions for doing fourier domain manipulation
-#  Used primarily for generating ANITA3 transfer functions
-#  Recreates many things in Ryan Nichol's FFTtools, plus a bunch of
-#       useful things that I couldn't find in there
-#
-######################################################################
-
-
-
-
 
 def genFFT(graphX,graphY):
     outFFT = fftw.rfft(graphY)
     outF = genFreqArray(graphX)
     
     return outF,outFFT
+
 
 def genFreqArray(graphX):
     length = len(graphX)/2. + 1
@@ -48,12 +46,12 @@ def genFreqArray(graphX):
     return np.arange(0,fMax,dF)
 
 
-
 def genTimeSeries(graphF,graphFFT):
     outY = fftw.irfft(graphFFT)
     outX = genTimeArray(graphF)
 
     return outX,outY
+
 
 def genTimeArray(graphF):
     lengthT = (len(graphF) - 1) * 2.
@@ -65,7 +63,6 @@ def genTimeArray(graphF):
     print dT,tMax
 
     return np.arange(0,tMax,dT)
-
 
 
 def genLogMag(graphX,graphY):
@@ -80,16 +77,19 @@ def calcLogMag(graphF,graphFFT):
     dF is likely in GHz (because thats how I roll) so you need to scale that for this to be dBm/Hz
     This also assumes you're giving it voltage in VOLTS
 
-
     http://www.hep.ucl.ac.uk/~rjn/saltStuff/fftNormalisation.pdf
     time-integral squared amplitude
-
     
     I somehow messed this up?
     """
 
+<<<<<<< HEAD
     dF = (graphF[1]-graphF[0])
     return 10.*np.log10((np.abs(graphFFT)**2/(50.*1000)))
+=======
+    dF = (graphF[1]-graphF[0]) * 1e9  # Resolution bandwidth (RBW), converted from GHz to Hz.
+    return 10. * np.log10(np.abs(graphFFT)**2 / 5e-2 / dF)
+>>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
     #unfold spectrum (This is done for you in fftw.rfft()):
     #1) discard negative frequencies (second half)
     #2) double all positive frequencies (but not DC (bin 0) and nyquist (bin length/2+1)
@@ -105,6 +105,7 @@ def calcLogMag(graphF,graphFFT):
 
 #    return dBm
     
+
 def calcLinMag(graphF,graphSpecMag):
     """
     It might be nice to have a way to reverse this (and return power in watts)
@@ -112,7 +113,11 @@ def calcLinMag(graphF,graphSpecMag):
     dF = graphF[1]-graphF[0]
 
     graphLogMag = graphSpecMag*dF
+<<<<<<< HEAD
     power = 10**(graphLogMag/10.)
+=======
+    power = 10**(graphLogMag / 10.)
+>>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
     
     return power
 
@@ -163,8 +168,8 @@ def zeroPadEnd(inXArray,inYArray,numPoints):
 def zeroPadEqual(inXArray,inYArray,outPoints):
     """
     Zero pad the input arrays into lengths specified by outPoints
-    Be aware that there are many values you can "zero" it with, but, if you're constantly zero meaning, zero might be best
-
+    Be aware that there are many values you can "zero" it with, but, if you're
+    constantly zero meaning, zero might be best
     """
 
     switch = 1
@@ -191,7 +196,6 @@ def zeroPadEqual(inXArray,inYArray,outPoints):
     return np.array(tempXList),np.array(tempYList)
 
 
-
 def hanningTail(inYArray,start,slope):
     """
     If you roll the waveform to the front of the window, you only want to hanning filter the end of it, so this does that.
@@ -215,8 +219,9 @@ def hanningTail(inYArray,start,slope):
 
 def hanningWindow(inXArray,inYArray,center,totalWidth=1000,slope=200):
     """
-    Takes two input arrays (x and y, since they both will change length), a total width, and a center (and optional slope).
-    Returns two arrays, a hanning windowed Y axis with a width of totalWidth centered at center,
+    Takes two input arrays (x and y, since they both will change length), a
+    total width, and a center (and optional slope). Returns two arrays, a
+    hanning windowed Y axis with a width of totalWidth centered at center,
     and the corresponding X axis with the same width.
     The slope of the hanning window is defined by slope, and defaults to 200.
     You can test it with just a flat DC line! :)
@@ -239,8 +244,6 @@ def hanningWindow(inXArray,inYArray,center,totalWidth=1000,slope=200):
         print "Warning in hanningWindow: center ("+str(center)+") too large, moving to max ("+str(lenGraph-width/2)+")"
         center = lenGraph-totalWidth/2
         
-   
-    
     value = 0.0;
     for pt in range(center-(width/2+slope),center+(width/2+slope)):
         if ( pt < (center-(width/2)-slope) ):
@@ -268,10 +271,7 @@ def hanningWindow(inXArray,inYArray,center,totalWidth=1000,slope=200):
             outYArray.append(0)
             outXArray.append(inXArray[pt])
 
-          
     return np.array(outXArray),np.array(outYArray)
-
-
 
 
 def nyquistLimit(inputWaveVolts,fMax):
@@ -283,7 +283,6 @@ def nyquistLimit(inputWaveVolts,fMax):
 
     filtered = signal.lfilter(b,a,inputWaveVolts,axis=0)
 
-        
     return filtered
 
 
@@ -302,7 +301,6 @@ def genPhase(inputX,inputY):
     return inputF,grpDly
 
 
-
 def unwrapPhase(phase):
 
     for i in range(1,len(phase)):
@@ -316,7 +314,12 @@ def unwrapPhase(phase):
 
     return phase
 
+<<<<<<< HEAD
 def fftPhaseShift(fft,shift,gdShift=0):
+=======
+
+def fftPhaseShift(fft,shift):
+>>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
     gainLin,phase = complexToGainAndPhase(fft)
     phase = phase+shift+np.arange(0,len(fft))*gdShift
 
@@ -334,14 +337,15 @@ def timePhaseShift(Y,shift):
     outY = fftw.irfft(fft)
     return outY
 
+
 def accumulatePhase(phase):
     """
-    If you're going to resample the phase, you need it to take the wraps into account!
-    The easiest way to do this is to "accumulate" the phase.  Basically, when it wraps upwards
-    add +2pi to all all subsequent values, and vice versa
+    If you're going to resample the phase, you need it to take the wraps into
+    account! The easiest way to do this is to "accumulate" the phase.
+    Basically, when it wraps upwards add +2pi to all all subsequent values,
+    and vice versa
 
     This takes in the phase array and returns that accumulated array
-
     """
 
     phaseOut = copy.deepcopy(phase)
@@ -355,6 +359,7 @@ def accumulatePhase(phase):
                 phaseOut[pt2] -= np.pi*2
 
     return phaseOut
+<<<<<<< HEAD
                    
 def unwrapPhase(phase):
     """
@@ -376,6 +381,8 @@ def unwrapPhase(phase):
 
     return phaseOut
 
+=======
+>>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
 
 
 def regenerateCablePhase(phase,dF=5000./512.,length=513):
@@ -387,7 +394,6 @@ def regenerateCablePhase(phase,dF=5000./512.,length=513):
     that everything else has:
     time domain: 10GS/S and n=1024
     freq domain: dF = 5000/512 and length=513
-
     """
 
     aPhase = accumulatePhase(phase)
@@ -396,10 +402,13 @@ def regenerateCablePhase(phase,dF=5000./512.,length=513):
     groupDelayMean = np.mean(groupDelay[:len(groupDelay)/2])
     
     #now, the DC is going to be zero (just because) and everything else is going to DECREASE from there
+<<<<<<< HEAD
     phaseOut = np.arange(0,length)*(groupDelayMean)
+=======
+    phaseOut = np.arange(length)*(-groupDelayMean)*dF
+>>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
 
     return phaseOut
-
 
 
 def regenerateCableLinMag(f,linMag,dF=5000./512.,length=513):
@@ -408,12 +417,11 @@ def regenerateCableLinMag(f,linMag,dF=5000./512.,length=513):
 
     This one gets the frequency too because I don't know where the boundries of the measurement are
     offhand and want to be able to determine them
-
     """
 
     linMagInterp = Akima1DInterpolator(f*1000.,linMag)
 
-    outF = np.arange(0,length)*dF
+    outF = np.arange(length)*dF
     newLinMag = linMagInterp(outF)
 
     #DC should be zero
@@ -425,15 +433,16 @@ def regenerateCableLinMag(f,linMag,dF=5000./512.,length=513):
     return newLinMag
 
 
-
-
 def complexToGainAndPhase(fft):
     """
-    the gain and phase are polar representations of the real/imag values on the complex plane
+    the gain and phase are polar representations of the real/imag values on the
+    complex plane
 
-    np.angle = "the counterclockwise angle from the positive real axis on the complex plane"
+    np.angle = "the counterclockwise angle from the positive real axis on the
+    complex plane"
 
-    That seems like a fine convention to stick to, I'm sure other people use it too
+    That seems like a fine convention to stick to, I'm sure other people use it
+    too
     """
 
     gainLin = []
@@ -450,7 +459,8 @@ def complexToGainAndPhase(fft):
 
 def gainAndPhaseToComplex(gainLin,phase):
     """
-    Just need to follow the conventions from complexToGainAndPhase() which is defined by np.angle
+    Just need to follow the conventions from complexToGainAndPhase() which is
+    defined by np.angle
     """
 
     real = []
@@ -462,12 +472,12 @@ def gainAndPhaseToComplex(gainLin,phase):
     return np.array(real)+np.array(imag)*1j
 
 
-
-
 def sqrtOfFFT2(fft):
     """
-    This is the actual way to do it!  The phase is divided in two and the magnitude is rooted.  
-    I THINK this preserves the signal (though it does time invert the causality so you have to reverse the inverse fft)
+    This is the actual way to do it!  The phase is divided in two and the
+    magnitude is rooted.  
+    I THINK this preserves the signal (though it does time invert the causality
+    so you have to reverse the inverse fft)
     """
 
     gain,phase = complexToGainAndPhase(fft)
@@ -477,10 +487,13 @@ def sqrtOfFFT2(fft):
 
     return fftOut
 
+
 def sqrtOfFFT1(fft):
     """
-    The dumbest and first approach at taking the square root of a complex transfer function
-    Since sqrt isn't well defined for a complex number, this doesn't preserve the time domain signal
+    The dumbest and first approach at taking the square root of a complex
+    transfer function
+    Since sqrt isn't well defined for a complex number, this doesn't preserve
+    the time domain signal
     """
     out = []
     for i in range(0,len(fft)):
@@ -557,7 +570,6 @@ def lowPass(inputWaveX,inputWaveY,lpFilter=1.50):
     b,a = signal.butter(5,lpFilter,'lowpass')
 
     filtered = signal.lfilter(b,a,inputWaveY,axis=0)
-
         
     return filtered
 
@@ -571,7 +583,6 @@ def lowPassFilter(inputX,inputY,lpFilter=1.25):
     filtered = signal.lfilter(b,a,inputY)
     
     return filtered
-
 
 
 def printTimeDomainToFile(x,y,file):
@@ -589,7 +600,6 @@ def printTimeDomainToFile(x,y,file):
     return
 
 
-
 def convolve(grA,grB):
     """
     I should write my own deconvolution algorithm if it is so easy
@@ -603,7 +613,7 @@ def convolve(grA,grB):
     oldLength = len(grA)
     newLength = len(grA)+2*len(grB)
     #zero pad wants an x array too, don't need it though
-    fart,grA = zeroPadEqual(np.arange(0,oldLength),grA,newLength)
+    fart,grA = zeroPadEqual(np.arange(oldLength),grA,newLength)
 
     grOut = []
 
@@ -619,11 +629,8 @@ def convolve(grA,grB):
             stop =1
 
     return np.array(grOut)
-
     
-
     
-
 def laplace(graphX,graphY):
     """
     for mapping "real valued functions to real valued functions"
@@ -641,7 +648,7 @@ def laplace(graphX,graphY):
     outGraphX = []
     outGraphY = []
 
-    for s in np.arange(0,len(graphX))*dW*1j:
+    for s in np.arange(len(graphX))*dW*1j:
         outGraphX.append(s/(1j*2*np.pi))
         value = 0
         for i in range(len(graphX)):
@@ -651,22 +658,20 @@ def laplace(graphX,graphY):
             value += np.exp(-s*t)*ft
         outGraphY.append(value)
         
-
     return outGraphX,outGraphY
-
 
 
 def correlation(graphA,graphB):
     """
-    Takes in two EVENLY SAMPLED graphs, then does the cross correlation in fourier space
+    Takes in two EVENLY SAMPLED graphs, then does the cross correlation in
+    fourier space
 
     NOTE: I need to roll this a bit! 
     Note to Note: Why?  to draw it away from zero?  Maybe no roll :(
     """
 
-#    fart,graphA = zeroPadEqual(np.arange(0,len(graphA)),graphA,len(graphA)*3)
-#    fart,graphB = zeroPadEqual(np.arange(0,len(graphB)),graphB,len(graphB)*3)
-    
+#    fart,graphA = zeroPadEqual(np.arange(len(graphA)),graphA,len(graphA)*3)
+#    fart,graphB = zeroPadEqual(np.arange(len(graphB)),graphB,len(graphB)*3)
 
     fftA = fftw.rfft(np.array(graphA))
     fftB = fftw.rfft(np.array(graphB))
@@ -679,8 +684,6 @@ def correlation(graphA,graphB):
 #    return iXCorr
    
 
-
-
 def findPeakCorr(dataA,dataB,xMin=0,xMax=-1):
     """
     A wrapper for correlation and fitAndPinpoint basically
@@ -688,8 +691,8 @@ def findPeakCorr(dataA,dataB,xMin=0,xMax=-1):
     inputs:
     dataA - the first Y data to correlate
     dataB - the second Y data to correlate against dataA
-    xMin/xMax - in case you want to select a range in which the correlation is valid
-
+    xMin/xMax - in case you want to select a range in which the correlation is
+    valid
 
     returns:
     max = fit maximum peak of the correlation (within the range)
@@ -715,7 +718,6 @@ def findPeakCorrs(data,scopeA=0,scopeB=1,chanA=0,chanB=0,xMin=0,xMax=-1,roll=0):
     shouldn't touch it too much until I split it off
     """
 
-
     maxes = []
     rSqs = []
     peaks = []
@@ -727,7 +729,7 @@ def findPeakCorrs(data,scopeA=0,scopeB=1,chanA=0,chanB=0,xMin=0,xMax=-1,roll=0):
         xMax=horReco
 
     for eventNum in range(0,len(data)):
-        xArray = np.roll(np.arange(0,horReco)*dT,roll)
+        xArray = np.roll(np.arange(horReco)*dT,roll)
         dataA = data[eventNum][scopeA][chanA][1]
         dataB = data[eventNum][scopeB][chanB][1]
         xCorr = np.roll(tf.correlation(dataA,dataB),roll)[xMin:xMax]
@@ -741,23 +743,21 @@ def findPeakCorrs(data,scopeA=0,scopeB=1,chanA=0,chanB=0,xMin=0,xMax=-1,roll=0):
         #print str(eventNum)+" "+str(max)
         maxes.append(max)
 
-
     return np.array(maxes),np.array(rSqs),np.array(peaks)
-
 
 
 def fitAndPinpoint(xCorrY,windowSize=2):
     """
-    Takes a cross correlation graph, fits a gaussian to it, and returns the offset
-    fits to (from benMathFit):
+    Takes a cross correlation graph, fits a gaussian to it, and returns the
+    offset fits to (from benMathFit):
     y = D*exp(((x-B)**2)/A)+C
     
     Inputs:
     xCorrY=the correlation graph you want to find the maximum of
     window=the size of the guassian fit, defaults to +-10
 
-    I want to do this in POINTS, not whatever the x axis is.  Other things can deal
-    with the stupid X axis
+    I want to do this in POINTS, not whatever the x axis is.  Other things can
+    deal with the stupid X axis
 
     returns:
     B (so it doesn't really matter that all those other things are stupid)
@@ -766,11 +766,10 @@ def fitAndPinpoint(xCorrY,windowSize=2):
     rSq of fit
     peak of correlation (to see how much improvement this makes)
 
-    So basically this is just a wrapper for a wrapper to the fit function lol whoops
-
+    So basically this is just a wrapper for a wrapper to the fit function lol
+    whoops
     """
     
-
     #find the absolute peak of the correlation
     peak = np.argmax(xCorrY)
     #remember that peak = len(xCorrY)/2 is zero!
@@ -789,26 +788,24 @@ def fitAndPinpoint(xCorrY,windowSize=2):
     windowY = xCorrY[peak-windowSize:peak+windowSize+1]
     windowX = np.arange(-windowSize,windowSize+1)
 
-
     #actually do the fit
     params,rSq = mf.fitGaussian(windowX,windowY,[guessA,guessB,guessC,guessD])
-
 
     #plot it for a sanity check
 #    lab.plot(xCorrY)
     upsampleX = np.arange(-windowSize*10,windowSize*10+0.01,0.01)
 #    print "max="+str(params[1])+" peak="+str(peakValue)
 
-
     #Now the params you are returning are
     
     return params,rSq,peakValue
 
+
 def shiftWaveform(yData,offset):
     """
     shifts the yData over by a set offset <- -|+ ->
-    zero pads new points that are created by the shift and dont overlay on the new graph
-
+    zero pads new points that are created by the shift and dont overlay on the
+    new graph
     """
 
     length = len(yData)
@@ -827,19 +824,18 @@ def shiftWaveform(yData,offset):
 #    print length," ",len(yData)
     return yData
 
+
 def resampleAtOffset(yData,offset):
     """
-    does a cubic (or akima spline) of the yData and returns the graph as if it were
-    resampled at whatever "offset" is.
+    does a cubic (or akima spline) of the yData and returns the graph as if it
+    were resampled at whatever "offset" is.
 
     input:
     yData - input data array
     offset - point offset of grid, should be in fractions of a point
     """
-
-
     
-    origXGrid = np.arange(0,len(yData))
+    origXGrid = np.arange(len(yData))
     yInterp = Akima1DInterpolator(origXGrid,yData)
 
     newXGrid = origXGrid+offset
@@ -855,10 +851,10 @@ def resampleAtOffset(yData,offset):
     return yNew
 
 
-
 def correlateAndAverage(events,makePlots=False):
     """
-    Takes a bunch of events that you've already imported a bunch of and correlates and averages them
+    Takes a bunch of events that you've already imported a bunch of and
+    correlates and averages them
     """
 
     avgEvent = [[],[]]
@@ -900,25 +896,21 @@ def correlateAndAverage(events,makePlots=False):
                 axB.legend()
                 fig.canvas.draw()
 
-
-
         currEvent = [[],[]]
     
     return avgEvent[0],avgEvent[1]
 
 
-
-
 def CheckParseval(dT,):
     """
     The result of a fourier transform is unitary:
-    "The sum (or integral) of the square of the function is equal to the sum (or integral) of the square of it's transform"
+    "The sum (or integral) of the square of the function is equal to the sum
+    (or integral) of the square of it's transform"
     This keeps the total energy the same in both
     """
 
     return
 
-from scipy import interpolate
 
 def interp(xNew,xOld,yOld,right=0):
     """
@@ -927,7 +919,7 @@ def interp(xNew,xOld,yOld,right=0):
     "right" in this case maps to both right and left because I am lazy!
     """
 
-    interpObj = interpolate.Akima1DInterpolator(xOld, yOld)
+    interpObj = Akima1DInterpolator(xOld, yOld)
     
     interpWave = interpObj(xNew)
 
@@ -939,11 +931,11 @@ def interp(xNew,xOld,yOld,right=0):
 
 def fitAndRegenFFT(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1):
     """
-    So far I can't find a good way to resample the cables, so I'm going to fit the
-    mangitude and then regenerate a causal waveform from that
+    So far I can't find a good way to resample the cables, so I'm going to fit
+    the mangitude and then regenerate a causal waveform from that
 
-    This ends up doing weird things, so lets fit the last 1/4th, then hanning window the end
-
+    This ends up doing weird things, so lets fit the last 1/4th, then hanning
+    window the end
     """
 
     length = len(inputF)
@@ -958,7 +950,7 @@ def fitAndRegenFFT(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1):
 
     pFit,rSq = mf.fitPoly3(inputF,magnitude,[0,0,0,0])
     
-    timeSeries = np.arange(0,sampleLength)*sampleResolu
+    timeSeries = np.arange(sampleLength)*sampleResolu
     freqSeries = genFreqArray(timeSeries)
 
     newMag = mf.lambdaPoly3(pFit,freqSeries)
@@ -967,13 +959,10 @@ def fitAndRegenFFT(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1):
 
     newMag[newMag<0] = 0
 
-    
-
     fig,ax = lab.subplots()
     ax.plot(inputF,magnitude,'.')
     ax.plot(freqSeries,newMag)
     fig.show()
-
 
     newReal = np.sqrt(newMag)
     newReal[::2] *= -1
@@ -983,8 +972,6 @@ def fitAndRegenFFT(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1):
     return freqSeries,newReal+newImag*1j
 
     
-
-
 def complexZeroPadAndResample(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1):
     """
     This is an important function for matching so I'll explain it:
@@ -993,17 +980,16 @@ def complexZeroPadAndResample(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1
     ->>  That translates to 513 samples (len/2+1) at 0.009765625GHz (1/Ttot)
          Fmax = 5GHz (zero pad to reach this value)
 
-    This BREAKS THINGS!! :( It makes a second weird pulse occur?  Maybe I should just do it in time domain...
-    It is because setting values out of the range of the input pulse to 1 is adding power in weird places
+    This BREAKS THINGS!! :( It makes a second weird pulse occur?  Maybe I
+    should just do it in time domain...
+    It is because setting values out of the range of the input pulse to 1 is
+    adding power in weird places
     So I changed the "right=1" to "right=0" and that fixes things somewhat
-
-
     """
 
     finaldF = 1./(sampleLength*sampleResolu);
 
-    outputF = np.arange(0,(sampleLength/2.)+1)*finaldF
-
+    outputF = np.arange(sampleLength/2.+1)*finaldF
 
     #numpy 1.11 can't do complex interp, 1.12 can though! (requires python 2.7)
     #so I have to do this by hand (wonderful)
@@ -1022,17 +1008,18 @@ def complexZeroPadAndResample(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1
 #    ax.plot(inputF,inputReal,'.',label="input")
 #    ax.legend()
 #    fig.show()
-
     
     return outputF,outputFFT
+
 
 def fourierZeroPad(f,fft,numPads):
     #this doesn't work and does bad things
     print "fourierPad doesn't work and does bad things"
     fftOut = np.concatenate((fft,np.zeros(numPads)))
-    fOut = np.concatenate((f,np.arange(0,numPads)*(f[1]-f[0])+f[-1]))
+    fOut = np.concatenate((f,np.arange(numPads)*(f[1]-f[0])+f[-1]))
 
     return fOut,fftOut
+
 
 def fourierPad(f,fft,numPads,value):
     #this doesn't work and does bad things
@@ -1047,9 +1034,10 @@ def fourierPad(f,fft,numPads,value):
     imag = np.concatenate((np.imag(fft),imagPad))
 
 #    fftOut = np.concatenate((fft,(np.ones(numPads)-np.ones(numPads)*1j)*value))
-    fOut = np.concatenate((f,np.arange(0,numPads)*(f[1]-f[0])+f[-1]))
+    fOut = np.concatenate((f,np.arange(numPads)*(f[1]-f[0])+f[-1]))
 
     return fOut,real+imag*1j
+
 
 def fourierZero(FFT):
     newFFT = []
@@ -1069,17 +1057,16 @@ def fourierExtrapolate(fftIn,numPads,fitStart=-1):
         fft = fftIn
     else:
         fft = fftIn[:fitStart]
-    p = mf.fitPoly3(np.arange(0,len(fft)),np.absolute(fft),[0,0,0,0])
+    p = mf.fitPoly3(np.arange(len(fft)),np.absolute(fft),[0,0,0,0])
     print p
-    extrap = mf.lambdaPoly3(p[0],np.arange(0,len(fftIn)+numPads))
+    extrap = mf.lambdaPoly3(p[0],np.arange(len(fftIn)+numPads))
     extrap = hanningTail(extrap,len(fft),len(fft)+50)
 
     #I put work into this so I want to keep it but it doesn't work!
-#    decay = mf.lambdaDecay([1.,100.],np.arange(0,numPads,dtype=float))
+#    decay = mf.lambdaDecay([1.,100.],np.arange(numPads,dtype=float))
 #    decay = np.concatenate((np.ones(len(fft)),decay))
 #    print len(fft),len(decay),len(extrap)
 #    extrap *= decay
-
 
     fig,ax = lab.subplots()
     ax.plot(np.absolute(fft))
@@ -1089,33 +1076,35 @@ def fourierExtrapolate(fftIn,numPads,fitStart=-1):
     return extrap
 
 
-#################################################
-#
-#   Using phase shifting to make a causal signal
-#
-#################################################
-
+#==============================================================================
+# Using phase shifting to make a causal signal
+#==============================================================================
 
 def makeCausalFFT(fft,tZero):
     """
     http://cdn.teledynelecroy.com/files/whitepapers/14-wp6paper_doshi.pdf
     
-    Basically when taking the S21 of a cable or signal (which we are doing, just a forward gain
-    complex phasor,), Fractional sample offsets distort the signal from causal to an acausal sinc
-    function in the time domain.  To alieviate this, it is allowed to shift the total phase of the
-    S21 in order to achieve maximum causality, which in this case would be a high pre-T0 to post-T0
-    power ratio.
+    Basically when taking the S21 of a cable or signal (which we are doing,
+    just a forward gain complex phasor,), Fractional sample offsets distort the
+    signal from causal to an acausal sinc function in the time domain.  To
+    alieviate this, it is allowed to shift the total phase of the S21 in order
+    to achieve maximum causality, which in this case would be a high pre-T0 to
+    post-T0 power ratio.
 
-    I wrote a section about this in the impulse response white paper citing the above linked paper
+    I wrote a section about this in the impulse response white paper citing the
+    above linked paper
 
-    I think the max causality has to be in between -pi and pi... though probably smaller
-    HOW IS THE CENTER DEFINED???? (17 is just for the cables which I found by looking, but it has to be
-    calculatable somehow).  You have to provide this because I'm strapped for time
+    I think the max causality has to be in between -pi and pi... though
+    probably smaller
+    HOW IS THE CENTER DEFINED???? (17 is just for the cables which I found by
+    looking, but it has to be calculatable somehow).  You have to provide this
+    because I'm strapped for time
 
-    Also at some point I should fit the "causalityRatio" thing and actually find the perfect point, but 
-    that is polishing the cannon for sure.
+    Also at some point I should fit the "causalityRatio" thing and actually
+    find the perfect point, but that is polishing the cannon for sure.
 
-    Also note that this can 180 degree phase shift things (flip the polarity) so BE CAREFUL
+    Also note that this can 180 degree phase shift things (flip the polarity)
+    so BE CAREFUL
     """
 
     shifts = np.arange(-np.pi,np.pi,0.01)
@@ -1133,13 +1122,13 @@ def makeCausalFFT(fft,tZero):
     print "Maximum causal waveform found at: ",shifts[maxCausal]
     shiftedFFT = fftPhaseShift(fft,shifts[maxCausal])
 
-
     return shiftedFFT
 
 
 def makeCausalTime(y,tZero):
     """
-    If you have the time series, this makes it easier (but slightly slower!  Two more FFTS!)
+    If you have the time series, this makes it easier (but slightly slower!
+    Two more FFTS!)
     
     you have to provide the pulse (in bins)
 
@@ -1182,7 +1171,6 @@ def compPhaseShifts(cableName):
     return shifts[np.argmax(shiftedArrayMaxes)]
         
 
-
 def compPhaseShifts2(cableName="A-C_PULSER-TEST_66DB.s2p"):
     max = compPhaseShifts(cableName)
     print max
@@ -1193,8 +1181,7 @@ def compPhaseShifts2(cableName="A-C_PULSER-TEST_66DB.s2p"):
     for shiftNum in range(0,len(shifts)):
         a,b = getCables(cableName,phaseShift=shifts[shiftNum])
         fft = tf.fftw.irfft(b)
-        ax.plot(np.arange(0,len(fft))+shiftNum*len(fft),np.roll(fft,400))
-
+        ax.plot(np.arange(len(fft))+shiftNum*len(fft),np.roll(fft,400))
 
     fig.show()
     return
@@ -1285,8 +1272,12 @@ def compPhaseShifts3(y=[],center=[],save=False):
 #    shiftedFFT = fftPhaseShift(fft,shifts[maxCausal])
 #    shifted = fftw.irfft(shiftedFFT)
 
+<<<<<<< HEAD
 
 #    return causalityRatio,shifted
+=======
+    return causalityRatio,shifted
+>>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
 
     return
 
@@ -1299,7 +1290,6 @@ def compPhaseShifts4(y):
     fft = fftw.rfft(y)
     shifts = np.arange(-np.pi,np.pi,0.01)
 
-
     for tZero in range(310,330):
         print tZero
         causalityRatio = []
@@ -1309,11 +1299,9 @@ def compPhaseShifts4(y):
             shifted = fftw.irfft(shiftedFFT)
             causalityRatio.append(np.sum(shifted[:tZero]**2)/np.sum(shifted[tZero:]**2))
 
-
-
         ax.plot(shifts,causalityRatio,label=tZero)
 
     ax.legend()
     fig.show()
 
-    
+    return
