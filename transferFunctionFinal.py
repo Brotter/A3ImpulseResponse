@@ -1,9 +1,32 @@
+"""
+Ben Rotter
+University of Hawaii at Manoa
+ANITA3
+February 2016 - through September 2016
+
+So this is a ton of my code all glommed together into one giant library.  This
+should make it easy to generate the full transfer function from all the
+different waveforms, and for all the channels easily
+
+It uses tfUtils (which I might turn into a auto-linked brotterlib at some
+point) which has a lot of FFT analysis and fun tools to mess with
+
+It uses data from avgSigChainWaveform and avgAntWaveform, which imports,
+correlates and averages the waveforms using eventReaderRoot and libFftwWrapper,
+things that I don't want to recreate.
+
+This is a selection of a much larger code base that does all the work, which is
+available upon request if you want to see a ton of debugging and testing
+functions, in addition to some classes that make plotting easier.
+
+Edited by John Russell.
+"""
+
 import numpy as np
 import pylab as lab
 
 from scipy import signal
-from scipy.interpolate import interp1d
-from scipy.interpolate import Akima1DInterpolator
+from scipy.interpolate import interp1d, Akima1DInterpolator
 
 from glob import glob
 
@@ -18,59 +41,41 @@ try:
 except:
     print "You don't have seaborn but thats okay!"
 
-
-"""
-Ben Rotter
-University of Hawaii at Manoa
-ANITA3
-February 2016 - through September 2016
-"""
-
-"""
-So this is a ton of my code all glommed together into one giant library.  This should make it easy to generate the full transfer function from all the different waveforms, and for all the channels easily
-
-It uses tfUtils (which I might turn into a auto-linked brotterlib at some point) which has a lot of FFT analysis and fun tools to mess with
-
-It uses data from avgSigChainWaveform and avgAntWaveform, which imports, correlates and averages the waveforms using eventReaderRoot and libFftwWrapper, things that I don't want to recreate.
-
-
-This is a selection of a much larger code base that does all the work, which is available upon request if you want to see a ton of debugging and testing functions, in addition to some classes that make plotting easier.
-
-"""
-
+#directories with antenna pulse data
+localDir = "$HOME/Dropbox/UH Manoa/ANITA/A3ImpulseResponse/calibrationLinks/"
+#localDir = "/Volumes/BenANITA3Data/"
 
 #where the cable info is stored
-cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
-
+cablesBaseDir = localDir + "S21ExternalRFChainForSingleChannelCallibration/"
+#cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
 
 #signal chain data (57dB seems to be a happy middle power)
-waveformDir = "/Users/brotter/benCode/impulseResponse/integratedTF/waveforms_57dB/"
-
-#directories with antenna pulse data
-localDir = "/Volumes/BenANITA3Data/"
+waveformDir = localDir + "waveforms_57dB/"
+#waveformDir = "/Users/brotter/benCode/impulseResponse/integratedTF/waveforms_57dB/"
 
 roofDir = "Rooftop_Seevey_Antenna/Antenna_Impulse_Testing/"
-currLocalRoofDir=localDir+roofDir+"Attempt_2_02July2012/Hpol/"
-remoteRoofDir = "/storageb/ANITA-3/"+roofDir
-currRemoteRoofDir=remoteRoofDir+"Attempt_2_02July2012/Hpol/"
+currLocalRoofDir = localDir + roofDir + "Attempt_2_02July2012/Hpol/"
+remoteRoofDir = "/storageb/ANITA-3/" + roofDir
+currRemoteRoofDir = remoteRoofDir + "Attempt_2_02July2012/Hpol/"
 
-chamberDir="Anechoic_Chamber_New_Horn_Impulse/ANITA2Antennas/HPol_Pulse"
-remoteChamberDir="/storage/Krauss_Backup/ANITA/"+chamberDir
+chamberDir = "Anechoic_Chamber_New_Horn_Impulse/ANITA2Antennas/HPol_Pulse"
+remoteChamberDir = "/storage/Krauss_Backup/ANITA/" + chamberDir
 
-chamberIdentDir="Anechoic_Chamber_New_Horn_Impulse/IdenticalAntennas/Ant2Blue_to_Ant0/HPol_Pulse/HPol_Pulse_New_Cable/"
-chamberRefPulse = localDir+chamberIdentDir+"Impulse_NewRedCable_23May2012.dat"
+chamberIdentDir = "Anechoic_Chamber_New_Horn_Impulse/IdenticalAntennas/Ant2Blue_to_Ant0/HPol_Pulse/HPol_Pulse_New_Cable/"
+chamberRefPulse = localDir + chamberIdentDir + "Impulse_NewRedCable_23May2012.dat"
 
-chamberBoresightPulse = localDir+chamberIdentDir+"Impulse_p180Deg_t090Deg_22May2012_H_Two.dat"
+chamberBoresightPulse = localDir + chamberIdentDir + "Impulse_p180Deg_t090Deg_22May2012_H_Two.dat"
 
-###############################################################################################################
-#Importing things
 
+#==============================================================================
+# Importing things
+#==============================================================================
 
 def importANITA1():
     a1 = np.loadtxt("ANITA1ImpulseResponse.dat")
     return a1.T[0]*1e9,a1.T[1]
 
-###################################
+
 def findPalestineAntennaFile(chan,inOrOut):
     
     antennaInfo = np.loadtxt("antennaInformation_cut.csv",dtype=str,delimiter=",")
@@ -90,7 +95,6 @@ def findPalestineAntennaFile(chan,inOrOut):
     return fileName
 
 
-##########################
 def importPalAntIn(chan):
     #Palestine Antennas
         # there is only one waveform :( 
@@ -108,10 +112,9 @@ def importPalAntIn(chan):
     #also I always want to have the fourier spaces of these things
     dataF,dataFFT = tf.genFFT(dataX,dataY)
 
-
     return dataX,dataY,dataF,dataFFT
 
-#############################
+
 def importPalAntOut(chan):
 
     fileName = findPalestineAntennaFile(chan,"out")
@@ -133,7 +136,6 @@ def importPalAntOut(chan):
     return dataX,dataY,dataF,dataFFT
 
 
-#############
 def importChamberAnts(fileName=localDir+roofDir+"HPulse_10degCCW_148p_090t_10dBatt.dat",numEvents=-1,channel=0):
     """
     I always need to write more parsers, always be parsing (ABP)
@@ -159,7 +161,6 @@ def importChamberAnts(fileName=localDir+roofDir+"HPulse_10degCCW_148p_090t_10dBa
     return events
 
 
-######################
 def importRoofAntIn():
     #Hawaii Rooftop Antenna Input Pulse (FID)
     fileName = "avgFid.txt"
@@ -173,7 +174,7 @@ def importRoofAntIn():
         
     return dataX,dataY,dataF,dataFFT
                 
-#######################
+
 def importRoofAntOut():
     #Hawaii Rooftop Antenna Input Pulse (Ant)
     fileName = "avgAnt.txt"
@@ -188,7 +189,6 @@ def importRoofAntOut():
     return dataX,dataY,dataF,dataFFT
 
 
-########################
 def importSurf(chan):
     #LAB chip from the SURF
     fileName = waveformDir+chan+"_avgSurfWaveform.txt"
@@ -205,7 +205,6 @@ def importSurf(chan):
     return dataX,dataY,dataF,dataFFT
     
 
-#########################
 def importScope(chan):
     #Calibration Scope
     fileName = waveformDir+chan+"_avgScopeWaveform.txt"
@@ -222,7 +221,6 @@ def importScope(chan):
     return dataX,dataY,dataF,dataFFT
 
 
-#################################################
 def getCables(fileName,dF=5000./512.,length=513):
     """
     New getCables():
@@ -249,9 +247,6 @@ def getCables(fileName,dF=5000./512.,length=513):
     return cableNewFreq,cableFFT
 
 
-
-
-#####################################
 def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
     """
 
@@ -274,7 +269,6 @@ def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
  
     """
 
-
     cableFreq,cableGainLin,cablePhase = s2pParser(cablesBaseDir + fileName)
 
     #cables from network analyzer were stored in gain and phase...
@@ -296,21 +290,21 @@ def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
             tZero = len(x)/2
         fOut,fftOut = tf.genFFT(x,y)
 
-
     #make it causal so it is all pretty :) 
     if tZero != False:
         print "Making Causal with tZero=",tZero
         fftOut  = tf.makeCausalFFT(fftOut,tZero)
 
-
-
-
-    #Resampling
-    ##########################
-    #this might do bad things...
-    #the goal of it was to get the time binning and window length the same
-    #for an irfft, but this just worstens the fractional phase offset error at first...
-    #-> Yeah even for a "phase aligned" waveform it messes it up
+    """========================================================================
+      Resampling
+    ===========================================================================
+    
+      this might do bad things...
+      the goal of it was to get the time binning and window length the same
+      for an irfft, but this just worstens the fractional phase offset error at first...
+      -> Yeah even for a "phase aligned" waveform it messes it up
+    """
+    
     if resample=="fftZeroPad":
         fOut,fftOut = tf.complexZeroPadAndResample(fOut,fftOut)
 
@@ -328,8 +322,6 @@ def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
         newY = np.nan_to_num(yInterp(newX))
         fOut,fftOut = tf.genFFT(newX,newY[::-1])
 
-
-
     #Last thing to try is fitting and reinterpolating it
     elif resample=="fftFit":
         fOut,fftOut = tf.fitAndRegenFFT(fOut,fftOut)
@@ -338,7 +330,7 @@ def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
 
     return fOut,fftOut
 
-########################
+
 def s2pParser(fileName):
 
     freq = []
@@ -362,10 +354,10 @@ def s2pParser(fileName):
     return np.array(freq),np.array(gainLin),np.array(phase)
 
 
-###############################################################################################################
-#Processing
+#==============================================================================
+# Processing
+#==============================================================================
 
-##########################################
 def processWaveform(graphT,graphV,source):
     """
     Single functions to do lots of things!  Input what the "source" is and it will do the type
@@ -395,7 +387,6 @@ def processWaveform(graphT,graphV,source):
     kSlice         = False
     kZeroStart     = True #I always want to make them start at zero :|
     
-
     #          SURF measured by LAB
     #Raw: record length of 259 sampling at 2.5GS/s  
     #Now: recoLen=1024, sampling 10GS/s
@@ -415,7 +406,6 @@ def processWaveform(graphT,graphV,source):
         kPostZeroMean  = True
         kZeroPad       = True
    
-
     #          Rooftop antenna testing input (FID)
     #Raw: record length of 1000 | sampling rate of 40GS/s
     #Now: same
@@ -457,20 +447,16 @@ def processWaveform(graphT,graphV,source):
         kHanningWindow = True
         kPostZeroMean  = True
 
-
     print "---->Starting processWaveform() on "+source
 
     #print out what you got in initially
     print "Initial: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
-
-
 
     #pre-processing zero mean it
     if kPreZeroMean:
         initialMean = np.mean(graphV)
         graphV -= initialMean
         print "PreZeroMean: "+str(initialMean)+" -> "+str(np.mean(graphV))
-
 
     #find frequency binning and do butterworth IIR filter
     if kBandPassFilter:
@@ -480,8 +466,6 @@ def processWaveform(graphT,graphV,source):
         graphV = tf.nyquistLimit(graphV,fMax)
         print "Filter: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
         
-
-
     #downsample to 10GS/s [start:stop:step]
     #average together avgN points to get one point
     if kDownsample:
@@ -495,7 +479,6 @@ def processWaveform(graphT,graphV,source):
         graphT = avgX
         print "Downsample: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
 
-
     #find max and do hanning window (cuts waveform to desired length too)
     if kHanningWindow:
         #I have to zero pad out so I can select the center of the window
@@ -503,7 +486,6 @@ def processWaveform(graphT,graphV,source):
         graphMaxV = np.argmax(graphV)
         graphT,graphV = tf.hanningWindow(graphT,graphV,graphMaxV,512,slope=100)
         print "Hanning: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
-
 
     #find max and do hanning window with SUPER SHARP EDGES(cuts waveform to desired length too)
     if kSlice:
@@ -513,12 +495,10 @@ def processWaveform(graphT,graphV,source):
         graphT,graphV = tf.hanningWindow(graphT,graphV,graphMaxV+240,512,slope=1)
         print "Slice: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
 
-
     #zero pad back to 1024 because I'm making my hanning window smaller (~50ns wide)
     if kZeroPad:
         graphT,graphV = tf.zeroPadEqual(graphT,graphV,1024)
     
-
     #zero mean it again at the end
     if kPostZeroMean:
         initialMean = np.mean(graphV)
@@ -533,32 +513,30 @@ def processWaveform(graphT,graphV,source):
     return graphT,graphV
 
 
+"""============================================================================
+  Generating impulse responses
 
-###############################################################################################################
-#Generating impulse responses
+  getting the cables is really resource intensive, so I'd like to do it once
+  and then be done with it
+  so I guess I can save it within the module?  Initialize them as False and
+  then fill them if they aren't an numpy ndarray (which a boolean isn't)
+============================================================================"""
 
-
-#getting the cables is really resource intensive, so I'd like to do it once and then be done with it
-#so I guess I can save it within the module?  Initialize them as False and then fill them if they
-# aren't an numpy ndarray (which a boolean isn't)
 P2SF = False
 P2SFFT = False
 P2AF = False
 P2AFFT = False
 
-##################################
+
 def doSigChainWithCables(chan,savePlots=False):
     #phase shifts are likely pointless!
     #they were: scopeFFT=1.26
     #           phaseShift=1.698
 
-
-    
     #get scope data from waveforms (extracted from raw data from another script)
     scopeRawX,scopeRawY,scopeRawF,scopeRawFFT = importScope(chan)
     scopeX,scopeY = processWaveform(scopeRawX,scopeRawY,"calScope")
     scopeF,scopeFFT = tf.genFFT(scopeX,scopeY)
-
 
     if savePlots:
         fig,ax = lab.subplots(2,figsize=(11,8.5))
@@ -575,8 +553,6 @@ def doSigChainWithCables(chan,savePlots=False):
         ax[1].legend()
         fig.savefig("plots/doSigChainWithCables_A.png")
         
-
-
     #1.26 is the max coherance phase?
 #    scopeFFT = tf.fftPhaseShift(scopeFFT,1.26)
 
@@ -590,13 +566,9 @@ def doSigChainWithCables(chan,savePlots=False):
 #        P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
         P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p")
 
-
-
     #deconvolve cable pulse * cable = scope -> pulse = scope/cable
     #finds just the pulser impulse
     pulseDeconvFFT = scopeFFT/P2SFFT
-
-
 
     #Get the cable's (H(f) transfer function for pulser to AMPA)
     # again, the 973 is from tf.compPhaseShifts3()
@@ -607,17 +579,14 @@ def doSigChainWithCables(chan,savePlots=False):
 #        P2AF,P2AFFT= getCables("A-C_PULSER-TEST_66DB.s2p",tZero=True,hanning=True,resample="fftFit")
         P2AF,P2AFFT= getCables("A-B_PULSER-TEST_0DB.s2p")
 
-    
     #convolve it with that transfer function to get pulse at AMPA
     ampaInputFFT = P2AFFT*pulseDeconvFFT
-
 
     #get the surf (extracted from ROOT data from another script)
     surfRawX,surfRawY,surfRawF,surfRawFFT = importSurf(chan)
     surfX,surfY = processWaveform(surfRawX,surfRawY,"surf")
 
     surfF,surfFFT = tf.genFFT(surfX,surfY)
-
 
     #deconvolve signal chain transfer function out of that!
     tfFFT = surfFFT/ampaInputFFT
@@ -639,14 +608,9 @@ def doSigChainWithCables(chan,savePlots=False):
 #    tfY = np.roll(tfY,30-np.argmax(tfY))
 #    tfY = tf.hanningTail(tfY,200,100)
     
-
     return surfX,tfY,surfF,tfFFT 
 
 
-
-
-
-##########################
 def doRoofAntWithCables():
 
     #get waveforms and process them
@@ -658,7 +622,6 @@ def doRoofAntWithCables():
     antOutX,antOutY = processWaveform(antOutX,antOutY,"roofantout")
     antOutF,antOutFFT = tf.genFFT(antOutX,antOutY)
 
-
     #compute the transfer function (for chan pair system!)
     antTFX,antTFY,antTFF,antTFFFT = computeTF(antInF,antInFFT,antOutF,antOutFFT)
 
@@ -667,13 +630,11 @@ def doRoofAntWithCables():
 #    print "FSPL="+str(FSPL)
 #    antTFFFT /= FSPL
 
-
     #one antenna should be the square root of the response
     #cmath can't operate on numpy matricies so I have to iterate by hand
 #    for i in range(0,len(antTFFFT)):
 #        antTFFFT[i] = cmath.sqrt(antTFFFT[i])
     
-
 #    fig0,ax = lab.subplots(3)
 #
 #    ax[0].plot(antInX,antInY)
@@ -685,13 +646,10 @@ def doRoofAntWithCables():
     return antTFX,antTFY,antTFF,antTFFFT
 
 
-###################
 def doPalAnt(chan):
     #
     # Go through ALL the antennas measured in palestine 2014
     #
-
-
 
     inX,inY,inF,inFFT = importPalAntIn(chan)
     inX,inY = processWaveform(inX,inY,"palin")
@@ -703,37 +661,36 @@ def doPalAnt(chan):
 
     antTFX,antTFY,antTFF,antTFFFT = computeTF(inF,inFFT,outF,outFFT)
 
-
-    #one antenna should be the square root of the response
-    #cmath can't operate on numpy matricies so I have to iterate by hand
-    #this also doesn't work... maybe I can just do it in group delay and magnitude?
-    #basically since square roots are poorly defined in complex space, you NEED to do it with
-    # the sines and cosines, which I added to tfUtils!
+    """
+      one antenna should be the square root of the response
+      cmath can't operate on numpy matricies so I have to iterate by hand
+      this also doesn't work... maybe I can just do it in group delay and
+      magnitude?
+      basically since square roots are poorly defined in complex space, you
+      NEED to do it with the sines and cosines, which I added to tfUtils!
+    """
+    
     antTFFFT = tf.sqrtOfFFT2(antTFFFT)
 
-
-    #Make causal?  no probably not, that seems like a "last thing you do" sort of technique
+    """
+      Make causal?  no probably not, that seems like a "last thing you do" sort
+      of technique
+    """
+    
 #    antTFFFT = tf.makeCausalFFT(antTFFFT,np.argmax(tf.fftw.irfft(antTFFFT)))
 
     #I have to get the time domain again after that
     antTFY = tf.fftw.irfft(antTFFFT)
 
-    
     #clean up the tail and make it start at the beginning
     print "doing hanning window"
     antTFY = np.roll(antTFY,20-np.argmax(antTFY))
     antTFY = tf.hanningTail(antTFY,370,30)
     antTFFFT = tf.fftw.rfft(antTFY)
 
-
     return antTFX,antTFY#,antTFF,antTFFFT
 
 
-
-
-
-
-########################
 def doSigChainAndAntenna(chan):
     #get antenna
 #    antX,antY,antF,antFFT = doRoofAntWithCables()
@@ -741,7 +698,6 @@ def doSigChainAndAntenna(chan):
     
     #get sig chain
     sigChainX,sigChainY,sigChainF,sigChainFFT = doSigChainWithCables(chan)
-
 
     #convolve the two (full ANITA3 transfer function!)
     a3F = sigChainF
@@ -757,20 +713,14 @@ def doSigChainAndAntenna(chan):
     a3X = antX
     a3Y = tf.fftw.irfft(a3FFT)
 
-
-    
-
     #make it look nice and cut off the junk at the end
 #    a3Y = np.roll(a3Y,40-np.argmax(a3Y))
 #    a3Y = tf.hanningTail(a3Y,300,200)
 #    a3X,a3Y = tf.zeroPadEqual(a3X,a3Y,1024)
     
-    
-
     return a3X,a3Y
 
 
-#####################################
 def computeTF(inF,inFFT,outF,outFFT):
     """
     Generating the transfer function is always the same, so it gets its own class
@@ -789,10 +739,15 @@ def computeTF(inF,inFFT,outF,outFFT):
 
     tfX = np.arange(0,len(tfY))*(1./(2.*tfF[-1]))
 
-        #We can also try "cleaning it up" if we want, these lettered things basically do that.
+        """
+          We can also try "cleaning it up" if we want, these lettered things
+          basically do that.
 
-        #A) the group delay offset of this fft is going to be weird, it is the addition of the phase offset for both of them (I think?)
-        #so I have to roll it back a bit or it will wrap around the window, probably by the mean of the group delay!
+          A) the group delay offset of this fft is going to be weird, it is the
+          addition of the phase offset for both of them (I think?)
+          so I have to roll it back a bit or it will wrap around the window,
+          probably by the mean of the group delay!
+        """
 
     tfGrpDlyMean = np.mean(tf.calcGroupDelay(tfF,tfFFT))
     dT = tfX[1]-tfX[0]
@@ -803,8 +758,6 @@ def computeTF(inF,inFFT,outF,outFFT):
         tfY = np.roll(tfY,-(int(tfGrpDlyMean/dT)-(len(tfY)*3)/8)) 
     except:
         print "Warning in computeTF: coulnd't roll because the group delay is totally borked"
-        
-
 
         #B) maybe high pass it (if there is a lot of power there)
     #    tfY = tf.highPass(tfX,tfY)    
@@ -817,13 +770,12 @@ def computeTF(inF,inFFT,outF,outFFT):
     #    print "tf center: "+str(center)
     #    tfX,tfY = tf.hanningWindow(tfX,tfY,center,1024,slope=10)
 
-
         #X) Thats it, so convert it back and make sure the length is correct
     tfF,tfFFT = tf.genFFT(tfX,tfY)
     
     return tfX,tfY,tfF,tfFFT
 
-########################
+
 def doTheWholeShebang():
     """
     Generate the transfer function for all the channels!
@@ -840,7 +792,7 @@ def doTheWholeShebang():
 
     return allChans
 
-#####################
+
 def doAllSigChains():
     """
     just does all the signal chains without the antennas
@@ -855,7 +807,7 @@ def doAllSigChains():
 
     return allChans
 
-####################
+
 def doAllAntennas():
     """
     just does all the palestine antennas
@@ -882,35 +834,32 @@ def plotAllAntennas(allAnts):
     fig.show()
 
 
-########################
 def findSignalToNoise():
     """
-    I need to find the signal to noise ratio of the signal to do a Weiner Deconvolution
-    Basically, out of band our deconvolutions introduce noise (small/small = big possibly)
-    so we need to take the SNR into account.
-
-    The signal in our transfer function is actually the signal in the input pulse!
-    It is super well averaged (so there is basically no noise)
-
-    The noise in our transfer function then will be whatever the noise spectrum of the terminated
-    SURF input is?  Basically doing an average of all the FFTs of a bunch of waveforms with no signal...
-
+      I need to find the signal to noise ratio of the signal to do a Weiner
+      Deconvolution
+      Basically, out of band our deconvolutions introduce noise
+      (small/small = big possibly)
+      so we need to take the SNR into account.
+      
+      The signal in our transfer function is actually the signal in the input
+      pulse! It is super well averaged (so there is basically no noise)
+      
+      The noise in our transfer function then will be whatever the noise
+      spectrum of the terminated SURF input is?  Basically doing an average of
+      all the FFTs of a bunch of waveforms with no signal...
     """
-
-    
-
+    return
 
 
-###############################################################################################################
-#Plotting and writing txt files
+#==============================================================================
+# Plotting and writing txt files
+#==============================================================================
 
-
-
-#######################
 def writeAll(allChans):
     """
-    Writes all the files to disk in a space seperated variable format so that I can post them
-
+    Writes all the files to disk in a space seperated variable format so that I
+    can post them
     """
     for chan in allChans.keys():
         try:
@@ -922,10 +871,6 @@ def writeAll(allChans):
             print chan+" FAILED"
 
 
-
-
-
-###############################
 def saveAllNicePlots(allChans):
     """
     Saves a bunch of plots that I made so I can find channels that didn't work correctly
@@ -940,7 +885,6 @@ def saveAllNicePlots(allChans):
     
     a1F,a1FFT = tf.genFFT(a1X,a1Y)
 
-
     for chan in allChans:
         a3X = allChans[chan][0]
         a3Y = allChans[chan][1]
@@ -949,25 +893,20 @@ def saveAllNicePlots(allChans):
 
         a1YInterp = tf.interp(a3X,a1X,a1Y)
     
-
         #scale them
         a1MaxVal = np.max(a1Y)
         a3MaxVal = np.max(a3Y)
         scale = a1MaxVal/a3MaxVal
         
-
         #make them start at the beginning
         argMax = np.argmax(a3Y)
         a3Y = np.roll(a3Y,-argMax+100)
-
 
         #line them up
         a1Min = a1X[np.argmin(a1Y)]
         a3Min = a3X[np.argmin(a3Y)]
         maxDiff = a1Min-a3Min
         maxDiff += 0.3 #just a litte nudge
-
-
 
         #plot it
         ax[0].cla()
@@ -993,14 +932,11 @@ def saveAllNicePlots(allChans):
         fig.savefig("autoPlots/"+chan+".png")
 
 
-
-
-######################
 def plotCompare(allChans):
     """
     Plot a comparison of all the channels in a way that is sort of easy to see
-    Also has a good way to exclude channels that you think are "bad" (so you can fix them later of course)
-
+    Also has a good way to exclude channels that you think are "bad" (so you
+    can fix them later of course)
     """
 
     lab.close("all")
@@ -1018,15 +954,17 @@ def plotCompare(allChans):
     chans = allChans.keys()
     chans.sort()
 
-    #why are these bad?????
-    #calibration runs don't seem to have pulses in them!
-    #for 67dB runs
-#    badChans = ["01MH","02TH","03MH","04MV","04TV",
-#                "05MH","05TH","05TV","08MH","11TV",
-#                "12BV","12TV","13MH","15TH","16TH"]
-                
-    #for 47dB runs (which have a tail that runs off the end of the window so these aren't great either)
-
+    """
+      why are these bad?????
+      calibration runs don't seem to have pulses in them!
+      for 67dB runs
+      badChans = ["01MH","02TH","03MH","04MV","04TV",
+                  "05MH","05TH","05TV","08MH","11TV",
+                  "12BV","12TV","13MH","15TH","16TH"]
+      
+      for 47dB runs (which have a tail that runs off the end of the window so
+      these aren't great either)
+    """
 
     for chan in chans:
 
@@ -1036,7 +974,6 @@ def plotCompare(allChans):
         #make them start at the beginning
         argMax = np.argmax(waveY)
         waveY = np.roll(waveY,-argMax+100)
-
 
         f,logMag = tf.genLogMag(waveX,waveY)
         axFFT.plot(f,logMag)
@@ -1059,8 +996,6 @@ def plotCompare(allChans):
         elif (chan[3] == "H"):
                 axH[axIndex].plot(waveX,waveY,label=chan[:2])
 
-
-
     #labels and making it look pretty!
     axV[0].legend(bbox_to_anchor=(1.1, 1.05))
     axH[0].legend(bbox_to_anchor=(1.1, 1.05))
@@ -1079,11 +1014,10 @@ def plotCompare(allChans):
     return
 
 
+#==============================================================================
+# Stupid test things
+#==============================================================================
 
-###############################################################################################################
-#Stupid test things
-
-##########################
 def phaseShifts(waveform):
     """
     The group delay and magnitude are what is effected by the signal chain and antennas, the absolute phase is not
@@ -1114,15 +1048,15 @@ def phaseShifts(waveform):
     return shifts[np.argmax(shiftedArrayMaxes)]
         
 
-#########################
 def importAndPlotSurfs():
     """
-    The surf waveforms are getting all cut off at the end of the window(because of the ROOT correlation code)
-    I gotta see how often it happens and ensure that it DOESN'T because it makes the TF wrong if the pulse occurs early in the window
+      The surf waveforms are getting all cut off at the end of the window 
+      (because of the ROOT correlation code)
+      I gotta see how often it happens and ensure that it DOESN'T because it
+      makes the TF wrong if the pulse occurs early in the window
     """
 
     chans = np.loadtxt("chanList.txt",dtype=str)
-
 
     fig,ax = lab.subplots(6,8)
     fig2,ax2 = lab.subplots(6,8)
@@ -1153,8 +1087,6 @@ def importAndPlotSurfs():
     return
 
 
-
-
 def fourierZeroPadding():
 
     a,b,f,fft = getCables("A-B_PULSER-SCOPE.s2p")
@@ -1165,7 +1097,6 @@ def fourierZeroPadding():
     ax[0].plot(f,np.real(fft),color="blue")
     ax[0].plot(f,np.imag(fft),'--',color="blue")
 
-
     ax[0].plot(f2,np.real(fft2),color="red")
     ax[0].plot(f2,np.imag(fft2),'--',color="red")
 
@@ -1173,7 +1104,6 @@ def fourierZeroPadding():
     ax[1].plot(*tf.genTimeSeries(f2,fft2))
 
     fig.show()
-
 
     return f,fft,f2,fft2
 
@@ -1201,13 +1131,9 @@ def fourierCausalPadding():
 
     fig.show()
 
-
     return f,fft,f2,fft2
 
     
-    
-
-
 def calibrationPulseSignal(chan):
 
     #get scope data from waveforms (extracted from raw data from another script)
@@ -1264,7 +1190,6 @@ def weinerDeconv(sigInX,sigInY,chan):
     signalMag[:16] = np.ones(16)*signalMag[0]
     #lets just say this pulser thing has low frequency power
 
-
     snrMag = signalMag / noiseMag
 
     #weiner deconv!
@@ -1281,6 +1206,7 @@ def weinerDeconv(sigInX,sigInY,chan):
     
 
     return sigOutX,sigOutY,sigInFFT,sigOutFFT,G,snrMag,tfMag
+
 
 def testWeiner():
 

@@ -1,16 +1,16 @@
 #/usr/bin/python
+"""
+My transferFunction.py code (in integratedTF) is sort of a big mess, so this
+code is specifically for looking at the differences between the angles.  It
+probably relies on that other code though, since it is nice code.
 
+This one does the stuff in the chamber too!  I don't know what I am doing in
+terms of organization, I just have such a big mess of code. I should clean it
+up.
+
+Somewhat cleaned up by John Russell.
 
 """
-My transferFunction.py code (in integratedTF) is sort of a big mess, so this code is specifically for 
-looking at the differences between the angles.  It probably relies on that other code
-though, since it is nice code.
-
-
-This one does the stuff in the chamber too!  I don't know what I am doing in terms of organization, I just have such a big mess of code. I should clean it up.
-
-"""
-
 
 import numpy as np
 import pylab as lab
@@ -26,14 +26,13 @@ import seaborn as sns
 
 import remoteConnect as rc
 
-
-
 #for saving multiple plots to a pdf
 from matplotlib.backends.backend_pdf import PdfPages
 
 
 #directories with antenna pulse data
-localDir = "/Volumes/BenANITA3Data/"
+localDir = "$HOME/Dropbox/UH Manoa/ANITA/A3ImpulseResponse/calibrationLinks/"
+#localDir = "/Volumes/BenANITA3Data/"
 
 roofDir = "Rooftop_Seevey_Antenna/Antenna_Impulse_Testing/"
 currLocalRoofDir=localDir+roofDir+"Attempt_2_02July2012/Hpol/"
@@ -41,16 +40,17 @@ remoteRoofDir = "/storageb/ANITA-3/"+roofDir
 currRemoteRoofDir=remoteRoofDir+"Attempt_2_02July2012/Hpol/"
 
 chamberDir="Anechoic_Chamber_New_Horn_Impulse/ANITA2Antennas/HPol_Pulse"
-remoteChamberDir="/storage/Krauss_Backup/ANITA/"+chamberDir
+remoteChamberDir="/storage/Krauss_Backup/ANITA/" + chamberDir
 
 chamberIdentDir="Anechoic_Chamber_New_Horn_Impulse/IdenticalAntennas/Ant2Blue_to_Ant0/HPol_Pulse/HPol_Pulse_New_Cable/"
-chamberRefPulse = localDir+chamberIdentDir+"Impulse_NewRedCable_23May2012.dat"
+chamberRefPulse = localDir + chamberIdentDir + "Impulse_NewRedCable_23May2012.dat"
 
-chamberBoresightPulse = localDir+chamberIdentDir+"Impulse_p180Deg_t090Deg_22May2012_H_Two.dat"
+chamberBoresightPulse = localDir+chamberIdentDir + "Impulse_p180Deg_t090Deg_22May2012_H_Two.dat"
+
 
 def main():
     """
-    does whatever silly thing I am trying on the command line
+      does whatever silly thing I am trying on the command line
     """
 
     files = localFileList_ANITA2chamberHPol()
@@ -80,24 +80,19 @@ def main():
             offPhi = file.split("/")[-1].split("_")[1][1:4]
             offTheta = file.split("/")[-1].split("_")[2][1:4]
             print "Phi="+str(offPhi)+" Theta="+str(offTheta)
-
             
             label = str(offPhi)+","+str(offTheta)
             axes[-1].plot(grpDly[0][1:],grpDly[1][1:],label=label,color=colors[chan])
         index += 1
         
-
     for ax in axes:
         ax.legend()
     fig.show()
-
-
 
     return
 
 
 def ANITA2_HchamberAnglePlot():
-
 
     files = localFileList_ANITA2chamberHPol()
 
@@ -128,22 +123,17 @@ def ANITA2_HchamberAnglePlot():
             offPhi = file.split("/")[-1].split("_")[1][1:4]
             offTheta = file.split("/")[-1].split("_")[2][1:4]
             print "Phi="+str(offPhi)+" Theta="+str(offTheta)
-
             
             label = str(offPhi)+","+str(offTheta)
 #            axes[-1].plot(grpDly[0][1:],grpDly[1][1:],label=label,color=colors[chan])
             axes[-1].plot(logMag[0][1:200],logMag[1][1:200],label=label,color=colors[chan])
         index += 1
         
-
     for ax in axes:
         ax.legend()
     fig.show()
 
-
-
     return
-
     
 
 def ANITA3_chamberResponse(files=-1,rotate="phi",channel=1,eventAvgs=50):
@@ -152,7 +142,6 @@ def ANITA3_chamberResponse(files=-1,rotate="phi",channel=1,eventAvgs=50):
 
     #the defaults are for HPol rotating in phi, but you can do others.
     # channel==0 is Vpol and channel==1 is Hpol (I think)
-
 
     if files==-1:
         files = localFileList_ANITA3chamberHPol()
@@ -168,7 +157,6 @@ def ANITA3_chamberResponse(files=-1,rotate="phi",channel=1,eventAvgs=50):
     stop = 100 #~1GHz
     start = 2
     step = stop/float(numFreqs)
-
 
     sns.set_palette(sns.color_palette("husl",numFreqs))
 
@@ -197,8 +185,6 @@ def ANITA3_chamberResponse(files=-1,rotate="phi",channel=1,eventAvgs=50):
             else:
                 logMagAvg += logMag/fftAvgs
 
-            
-
         mags.append(logMagAvg[start:stop:step])
         allMags.append(logMagAvg[start:stop])
 
@@ -219,13 +205,11 @@ def ANITA3_chamberResponse(files=-1,rotate="phi",channel=1,eventAvgs=50):
         curve = np.array(curve)-np.max(curve)
         ax.plot(angles,curve,label=freqs[freqNum])
         
-
-                  
     ax.legend()
     fig.show()
 
-
     return angles,allFreqs,allMags
+
 
 def antChamberResponse(file,channel=1,eventAvgs=50):
     events = importAll(file,channel=channel)
@@ -273,7 +257,6 @@ def HpolTransferFunctionAnalysis(pulse=0,respo=0,makeFigs=False):
     #take the fourier transform
     pulseF,pulseFFT = tf.genFFT(pulseNewT,pulse[1])
     respoF,respoFFT = tf.genFFT(respoNewT,respo[1])
-
 
     #plot the log magnitude of that
     pulseLogMag = tf.calcLogMag(pulseF,pulseFFT)
@@ -355,7 +338,6 @@ def plotHeatmap(angles,freqs,mags,title="test",center=180,invert=True):
     #probably has to do with how imshow draws...
     angles = np.array(angles,dtype=np.int) - center
 
-
     #plot it!
     #note: need to turn off colorbar at first, since to access it's params you need to create it
 
@@ -380,8 +362,6 @@ def plotHeatmap(angles,freqs,mags,title="test",center=180,invert=True):
                       interpolation="none")
         
     ax.axes.set_title(title)
-
-    
     
     if invert==True:
         ax.axes.set_yticks(np.linspace(angles[-1]-dAngle/2.,angles[0]+dAngle/2.,len(angles)))
@@ -407,12 +387,13 @@ def plotHeatmap(angles,freqs,mags,title="test",center=180,invert=True):
 
     return fig
     
-
-
+    
 def plotHeatmapSeaborn(angles,freqs,mags):
-    #Seaborn has a heatmap that inputs datastructs (whatever those are)
-    # THIS IS DUMB because it doesn't map well to the lab.contour() plot, you need imshow for that
-
+    """
+      Seaborn has a heatmap that inputs datastructs (whatever those are)
+      THIS IS DUMB because it doesn't map well to the lab.contour() plot,
+      you need imshow for that
+    """
 
     #annoying way to set custom xticks in a heatmap >.<
     xticklabels = []
@@ -425,7 +406,6 @@ def plotHeatmapSeaborn(angles,freqs,mags):
     #the ytick labels should be around zero probably
     angles = np.array(angles,dtype=np.int) - 180
     angles = np.array(angles,dtype=np.str)
-
 
     #plot it!
     #note: need to turn off colorbar at first, since to access it's params you need to create it
@@ -455,7 +435,6 @@ def plotContour(angles,freqs,mags,fig=-1,center=180):
         newFig = False
         ax = fig.get_axes()[0]
 
-
     #the ytick labels should be around zero probably
     angles = np.array(angles,dtype=np.int) - center
     angles = np.array(angles,dtype=np.str)
@@ -472,11 +451,13 @@ def plotContour(angles,freqs,mags,fig=-1,center=180):
     else:
         fig.show()
 
-##
-#These fuctions are for generating the file lists of what I want to look at,
-# that is why they have a weird syntax (the fileList_whatever).
-# normally I hate underscores but I'll do this for now
-##
+
+"""============================================================================
+  These fuctions are for generating the file lists of what I want to look at,
+  that is why they have a weird syntax (the fileList_whatever).
+  normally I hate underscores but I'll do this for now
+============================================================================"""
+
 def remoteFileList_chamberHPol(host="charm.phys.hawaii.edu",port=2505):
     baseDir = "/storage/Krauss_Backup/ANITA/Anechoic_Chamber_New_Horn_Impulse/ANITA2Antennas/HPol_Pulse/"
     
@@ -491,6 +472,7 @@ def remoteFileList_chamberHPol(host="charm.phys.hawaii.edu",port=2505):
         returnFiles = [returnFiles]
 
     return returnFiles
+
 
 def localFileList_ANITA2chamberHPol():
     baseDir = "/Volumes/BenANITA3Data/Anechoic_Chamber_New_Horn_Impulse/ANITA2Antennas/HPol_Pulse/"
@@ -549,12 +531,14 @@ def localFileList_ANITA3chamberHPolFlipped():
     
 
 def ANITA3_rooftopResponse(files=-1,rotate="phi",channel=0,eventAvgs=50):
-    #imports and generates some arrays for angle, frequency, and spectral magnitude of
-    # correlated and averaged waveforms in a series of chamber data
-
-    #the defaults are for HPol rotating in phi, but you can do others.
-    # channel==0 is Vpol and channel==1 is Hpol (I think)
-
+    """
+      imports and generates some arrays for angle, frequency, and spectral
+      magnitude of correlated and averaged waveforms in a series of chamber
+      data
+      
+      the defaults are for HPol rotating in phi, but you can do others.
+      channel==0 is Vpol and channel==1 is Hpol (I think)
+    """
 
     if files==-1:
         files = localFileList_ANITA3rooftopHPol()
@@ -572,7 +556,6 @@ def ANITA3_rooftopResponse(files=-1,rotate="phi",channel=0,eventAvgs=50):
     stop = 100 #~1GHz
     start = 2
     step = stop/float(numFreqs)
-
 
     sns.set_palette(sns.color_palette("husl",numFreqs))
 
@@ -621,14 +604,12 @@ def ANITA3_rooftopResponse(files=-1,rotate="phi",channel=0,eventAvgs=50):
             curve.append(mags[angleNum][freqNum])
         curve = np.array(curve)-np.max(curve)
         ax.plot(angles,curve,label=freqs[freqNum])
-        
-
                   
     ax.legend()
     fig.show()
 
-
     return angles,allFreqs,allMags
+
 
 def localFileList_ANITA3rooftopHPol():
     baseDir = localDir+roofDir+"Attempt_2_02July2012/Hpol/"
@@ -692,6 +673,7 @@ def remoteImportAll(fileName=currRemoteRoofDir+"HPulse_10degCCW_148p_090t_10dBat
 
     return events
 
+
 def importAndMakeDoubleAveragedLogMags(fileList=-1):
     """
     Lets just average together a few in the time domain, then a few in the freq domain
@@ -706,7 +688,6 @@ def importAndMakeDoubleAveragedLogMags(fileList=-1):
             fileList[0]
         except:
             fileList = [fileList]
-
 
     avgFFTs = {}
     for fileName in fileList:
@@ -727,8 +708,8 @@ def importAndMakeDoubleAveragedLogMags(fileList=-1):
                 avgFFT[1] += tf.genLogMag(avgEvent[0],avgEvent[1])[1]
         avgFFTs[shortName] = (avgFFT[0],avgFFT[1]/numAvgs)
 
-
     return avgFFTs
+
 
 def importAndMakeDoubleAveragedData(fileList=-1,eventAvgNum=49):
     """
@@ -767,9 +748,9 @@ def importAndMakeDoubleAveragedData(fileList=-1,eventAvgNum=49):
 
         avgDelays[shortName] = averageEvents(groupDelays)
         avgLogMags[shortName] = averageEvents(logMags)
-
     
     return avgDelays,avgLogMags
+
 
 def averageEvents(events):
     """
@@ -812,6 +793,7 @@ def averageAndPhaseAlign(allEvents,eventAvgNum=24):
 
     return outputEvents
 
+
 def doubleAverageDelay(allEvents,eventAvgNum=24):
     """
     Does a "double average" of the group delay, basically:
@@ -839,7 +821,6 @@ def doubleAverageDelay(allEvents,eventAvgNum=24):
     return (avgFFT[0],avgFFT[1]/numAvgs)
 
 
-
 def processAllEvents(allEvents,totalWidth=500,slope=100,peak="auto"):
     """
     I need to work on the events a LITTLE BIT, not much, just a little
@@ -856,6 +837,7 @@ def processAllEvents(allEvents,totalWidth=500,slope=100,peak="auto"):
         outAllEvents.append((outX,outY))
 
     return outAllEvents
+
 
 def plotDelays(delays,compare=0,boxcar=1):
     
@@ -916,8 +898,8 @@ def boxcarMean(inputX,inputY,boxcar=25):
     inputY.resize(numBoxcars,boxcar)
     boxcarY = np.sum(inputY,axis=1)/float(boxcar)
 
-
     return inputX[::boxcar],boxcarY
+
 
 def makeFigAndAxes(axisDims=(1,1)):
     fig = lab.figure()
@@ -929,15 +911,14 @@ def makeFigAndAxes(axisDims=(1,1)):
     return fig,axes
         
     
-
 def filterGrp(grpDlyArray,window=11,order=3):
 
     filtered = {}
     for key in grpDlyArray.keys():
         filtered[key] = grpDlyArray[key][0],signal.savgol_filter(grpDlyArray[key][1],window,order)
 
-
     return filtered
+
 
 def plotMain(avgEvents):
 
@@ -991,6 +972,7 @@ def getDictDelays(avgEvents):
 
     return grpDlys
 
+
 def getDelays(avgEvents):
     
     grpDelays = []
@@ -1013,9 +995,6 @@ def getPhase(avgEvents):
     return phases
 
 
-
-
-
 def importCorrelateAndAverage(fileName=localDir+roofDir+"HPulse_10degCCW_148p_090t_10dBatt.dat"):
     """
     How about instead of importing a giant chunk I just go one at a time! (sounds like fun)
@@ -1025,7 +1004,6 @@ def importCorrelateAndAverage(fileName=localDir+roofDir+"HPulse_10degCCW_148p_09
     DEPRECIATED!!!!!!!!!
 
     """
-
     
     eventNum=0
     
@@ -1049,7 +1027,6 @@ def importCorrelateAndAverage(fileName=localDir+roofDir+"HPulse_10degCCW_148p_09
                 #print str(eventNum)+" "+str(max)
             eventNum += 1
             currEvent = [[],[]]
-
             
     return np.array(avgEvent)/(eventNum+1)
 
@@ -1061,3 +1038,4 @@ def multipage(filename, figs=None):
     for fig in figs:
         fig.savefig(pp, format='pdf')
     pp.close()
+    return
