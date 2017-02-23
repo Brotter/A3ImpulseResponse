@@ -9,6 +9,8 @@ though, since it is nice code.
 
 This one does the stuff in the chamber too!  I don't know what I am doing in terms of organization, I just have such a big mess of code. I should clean it up.
 
+Update Nov 1st 2016:  This code is a disaster.  Some of it works, some of it doesn't, it's been awhile since I've messed with it.
+
 """
 
 
@@ -18,7 +20,7 @@ import glob
 import copy #im suprised how little I end up using this...
 
 import tfUtils as tf
-import transferFunction as tFunc
+import transferFunctionFinal as tFunc #transferFunction.py is old, transferFunctionFinal is new
 
 from scipy import signal
 
@@ -33,7 +35,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 
 #directories with antenna pulse data
-localDir = "/Volumes/BenANITA3Data/"
+localDir = "/Volumes/ANITA3Data/"
 
 roofDir = "Rooftop_Seevey_Antenna/Antenna_Impulse_Testing/"
 currLocalRoofDir=localDir+roofDir+"Attempt_2_02July2012/Hpol/"
@@ -239,9 +241,10 @@ def antChamberResponse(file,channel=1,eventAvgs=50):
     return procAvgEvent
 
 
-def HpolTransferFunctionAnalysis(pulse=0,respo=0,makeFigs=False):
+def HpolTransferFunctionAnalysis(pulse=False,respo=False,makeFigs=False):
     #import stuff
-    if pulse==0 and respo==0:
+    if type(pulse)==bool and type(respo)==bool:
+        print "type(pulse)"
         pulse = antChamberResponse(chamberRefPulse,channel=0)
         respo = antChamberResponse("/Volumes/BenANITA3Data/Anechoic_Chamber_New_Horn_Impulse/IdenticalAntennas/Ant2Blue_to_Ant0/HPol_Pulse/Impulse_p180Deg_t090Deg_16May2012_H.dat")
 
@@ -271,8 +274,9 @@ def HpolTransferFunctionAnalysis(pulse=0,respo=0,makeFigs=False):
         figInWaves.savefig("HpolBoresightWaveforms.png")
 
     #take the fourier transform
-    pulseF,pulseFFT = tf.genFFT(pulseNewT,pulse[1])
-    respoF,respoFFT = tf.genFFT(respoNewT,respo[1])
+    pulseF,pulseFFT = tf.genFFT(pulseNewT,pulse)
+
+    respoF,respoFFT = tf.genFFT(respoNewT,respo)
 
 
     #plot the log magnitude of that
@@ -585,7 +589,7 @@ def ANITA3_rooftopResponse(files=-1,rotate="phi",channel=0,eventAvgs=50):
         for fftAvgNum in range(0,fftAvgs):
             avgEvent = tf.correlateAndAverage(events[eventAvgs*fftAvgNum:eventAvgs*(fftAvgNum+1)])
             peak = np.argmax(np.abs(avgEvent[1])) + 500
-            procAvgEvent = processAllEvents([avgEvent],totalWidth=2000,peak=peak).T[1]            
+            procAvgEvent = processAllEvents([avgEvent],totalWidth=2000,peak=peak).T
             transFunc = HpolTransferFunctionAnalysis(pulse=inPulse,respo=procAvgEvent)
             logMag = tf.genLogMag(transFunc[0],transFunc[1]*1000)
             if freqs == []:
@@ -855,7 +859,7 @@ def processAllEvents(allEvents,totalWidth=500,slope=100,peak="auto"):
                                      peak,totalWidth=totalWidth,slope=slope)
         outAllEvents.append((outX,outY))
 
-    return outAllEvents
+    return np.array(outAllEvents)
 
 def plotDelays(delays,compare=0,boxcar=1):
     

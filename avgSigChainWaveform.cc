@@ -204,7 +204,7 @@ TGraph* surfParseAndAverage(string antName) {
     return nullGr; }
 
   //I need to know the channel number too for determining which labrador
-  AnitaGeomTool *geom = new AnitaGeomTool();
+  AnitaGeomTool *geom = AnitaGeomTool::Instance();
   int chanIndex = geom->getChanIndexFromRingPhiPol(ring,phi-1,pol);
   delete geom;
 

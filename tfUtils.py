@@ -89,7 +89,7 @@ def calcLogMag(graphF,graphFFT):
     """
 
     dF = (graphF[1]-graphF[0])
-    return 10.*np.log10((np.abs(graphFFT)**2/(50.*1000.*dF)))
+    return 10.*np.log10((np.abs(graphFFT)**2/(50.*1000)))
     #unfold spectrum (This is done for you in fftw.rfft()):
     #1) discard negative frequencies (second half)
     #2) double all positive frequencies (but not DC (bin 0) and nyquist (bin length/2+1)
@@ -112,7 +112,7 @@ def calcLinMag(graphF,graphSpecMag):
     dF = graphF[1]-graphF[0]
 
     graphLogMag = graphSpecMag*dF
-    power = 10**(graphLogMag)/10.
+    power = 10**(graphLogMag/10.)
     
     return power
 
@@ -316,9 +316,9 @@ def unwrapPhase(phase):
 
     return phase
 
-def fftPhaseShift(fft,shift):
+def fftPhaseShift(fft,shift,gdShift=0):
     gainLin,phase = complexToGainAndPhase(fft)
-    phase = phase+shift
+    phase = phase+shift+np.arange(0,len(fft))*gdShift
 
     fft = gainAndPhaseToComplex(gainLin,phase)
     return fft
@@ -356,6 +356,27 @@ def accumulatePhase(phase):
 
     return phaseOut
                    
+def unwrapPhase(phase):
+    """
+    I don't like the np.unwrap() function, it doesn't seem to really work.
+    So I'm gonna just make an opposite to accumulatePhase() function!
+    """
+
+    phaseOut = copy.deepcopy(phase)
+
+    for pt in range(0,len(phase)):
+        if ( phaseOut[pt] > np.pi ):
+            for pt2 in range(pt,len(phase)):
+                phaseOut[pt2] -= np.pi*2
+        elif ( phaseOut[pt] < -np.pi ):
+            print "a",phaseOut[pt]
+            for pt2 in range(pt,len(phase)):
+                phaseOut[pt2] += np.pi*2
+            print "b",phaseOut[pt]
+
+    return phaseOut
+
+
 
 def regenerateCablePhase(phase,dF=5000./512.,length=513):
     """
@@ -375,7 +396,7 @@ def regenerateCablePhase(phase,dF=5000./512.,length=513):
     groupDelayMean = np.mean(groupDelay[:len(groupDelay)/2])
     
     #now, the DC is going to be zero (just because) and everything else is going to DECREASE from there
-    phaseOut = np.arange(0,length)*(-groupDelayMean)*dF
+    phaseOut = np.arange(0,length)*(groupDelayMean)
 
     return phaseOut
 
@@ -468,12 +489,18 @@ def sqrtOfFFT1(fft):
     return np.array(out)
 
 
-def calcGroupDelay(inputF,inputFFT):
+def calcGroupDelay(inputFFT,inputF=-1,dF=-1):
 
     phase = calcPhase(inputFFT)
     
-    dF = inputF[1]-inputF[0]
-#    dF = 1
+    if inputF != -1 and dF != -1:
+        print "WARNING IN tfUtils::calcGroupDelay - I'm going to use inputF to generate dF even though you also gave me dF"
+
+    if  inputF != -1:
+        dF = inputF[1]-inputF[0]
+    if dF == -1:
+        dF = 0.1 #sure why not
+
     GrpDly = np.abs(np.diff(phase)/(2*np.pi*dF))
 
     return GrpDly
@@ -1173,7 +1200,15 @@ def compPhaseShifts2(cableName="A-C_PULSER-TEST_66DB.s2p"):
     return
 
 
-def compPhaseShifts3(y,center,save=False):
+def compPhaseShifts3(y=[],center=[],save=False):
+
+    if y == []:
+        y = np.zeros(1024)
+        y[50] = 1
+        center = 50
+
+    if center == []:
+        center = len(y)/2
 
     fft = fftw.rfft(y)
 
@@ -1184,43 +1219,76 @@ def compPhaseShifts3(y,center,save=False):
     causalityRatio = []
     shifts = np.arange(-2*np.pi,2*np.pi,0.1)
 #    shifts = np.arange(-np.pi/4.,np.pi/4.,0.01)
-    fig,ax = lab.subplots(3,2,figsize=(20,10))
+    fig,ax = lab.subplots(3,1,figsize=(15,7))
     fig.show()
     for i in range(0,len(shifts)):
         shiftedFFT = fftPhaseShift(fft,shifts[i])
         shifted = fftw.irfft(shiftedFFT)
-        ax[0][0].cla()
-        ax[0][0].plot(range(0,center),shifted[:center],color="red")
-        ax[0][0].plot(range(center,len(shifted)),shifted[center:],color="blue")
-#        ax[0][0].set_xlim([0,200])
-        ax[1][0].cla()
-        ax[1][0].plot(10.*np.log10((np.abs(shiftedFFT[1:-1])**2)))
-        ax[2][0].cla()
-        ax[2][0].plot(np.angle(shiftedFFT[1:-1]))
-        maxes.append(np.max(shifted))
-        mins.append(np.min(shifted))
-        maxLoc.append(np.argmax(shifted))
-        minLoc.append(np.argmin(shifted))
-        causalityRatio.append(np.sum(shifted[:center]**2)/np.sum(shifted[center:]**2))
-        ax[0][1].plot(shifts[i],maxes[-1],'.',color="blue")
-        ax[0][1].plot(shifts[i],mins[-1],'.',color="red")
 
-        ax[1][1].plot(shifts[i],maxLoc[-1],'.',color="blue")
-        ax[1][1].plot(shifts[i],minLoc[-1],'.',color="red")
+        #time domain pulse
+        ax[0].cla()
+        ax[0].set_title("time domain");
+        ax[0].plot(shifted,lw = 3)
+        ax[0].plot(range(0,center),shifted[:center],'.',color="red")
+        ax[0].plot(range(center,len(shifted)),shifted[center:],'.',color="blue")
+#        ax[0].set_xlim([0,200])
+        ax[0].set_ylim([-0.5,0.5])
 
-        ax[2][1].plot(shifts[i],causalityRatio[-1],'.',color="purple")
+        #phase
+        ax[1].cla()
+        ax[1].set_title("Phase")
+        ax[1].plot(np.angle(shiftedFFT[1:-1]))
+        ax[1].set_ylim([-np.pi,np.pi])
+
+        #group delay
+        ax[2].cla()
+        ax[2].set_title("Group Delay")
+        ax[2].plot(calcGroupDelay(shiftedFFT))
+
+#        ax[1][0].plot(10.*np.log10((np.abs(shiftedFFT[1:-1])**2)))
+
+        #fourier components
+#        ax[2][0].cla()
+#        ax[2][0].set_title("Group Delay")
+#        ax[2][0].plot(np.real(shiftedFFT),label="real")
+#        ax[2][0].plot(np.imag(shiftedFFT),label="imag")
+#        ax[2][0].legend()
+
+
+        #time domain "zeropoint" peak ratio
+#        maxes.append(np.max(shifted))
+#        mins.append(np.min(shifted))
+#        maxLoc.append(np.argmax(shifted))
+#        minLoc.append(np.argmin(shifted))
+#        causalityRatio.append(np.sum(shifted[:center]**2)/np.sum(shifted[center:]**2))
+#        ax[0][1].set_title("Time Domain Zeropoint Peak Ratio");
+#        ax[0][1].plot(shifts[i],maxes[-1],'.',color="blue")
+#        ax[0][1].plot(shifts[i],mins[-1],'.',color="red")
+#
+#        #location of peak
+#        ax[1][1].set_title("peak location")
+#        ax[1][1].plot(shifts[i],maxLoc[-1],'.',color="blue")
+#        ax[1][1].plot(shifts[i],minLoc[-1],'.',color="red")
+#
+#        #ratio of pre-peak to post-peak power
+#        ax[2][1].set_title("Ratio of pre-peak to post-peak power");
+#        ax[2][1].plot(shifts[i],causalityRatio[-1],'.',color="purple")
+
+        #draw it
         fig.canvas.draw()
+        #save it for moviemakin'
         if save==True:
             fig.savefig("phaseShiftMovie/"+str(i).zfill(3)+".png")
 
-    maxCausal = np.argmax(causalityRatio)
+#    maxCausal = np.argmax(causalityRatio)
     
-    shiftedFFT = fftPhaseShift(fft,shifts[maxCausal])
-    shifted = fftw.irfft(shiftedFFT)
+#    shiftedFFT = fftPhaseShift(fft,shifts[maxCausal])
+#    shifted = fftw.irfft(shiftedFFT)
 
 
-    return causalityRatio,shifted
+#    return causalityRatio,shifted
 
+    return
 
 def compPhaseShifts4(y):
 

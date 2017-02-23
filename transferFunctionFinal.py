@@ -597,7 +597,6 @@ def doSigChainWithCables(chan,savePlots=False):
     pulseDeconvFFT = scopeFFT/P2SFFT
 
 
-
     #Get the cable's (H(f) transfer function for pulser to AMPA)
     # again, the 973 is from tf.compPhaseShifts3()
     global P2AF
@@ -618,6 +617,7 @@ def doSigChainWithCables(chan,savePlots=False):
 
     surfF,surfFFT = tf.genFFT(surfX,surfY)
 
+    return surfRawX,surfRawY,surfRawF,surfRawFFT
 
     #deconvolve signal chain transfer function out of that!
     tfFFT = surfFFT/ampaInputFFT
@@ -708,7 +708,7 @@ def doPalAnt(chan):
     #cmath can't operate on numpy matricies so I have to iterate by hand
     #this also doesn't work... maybe I can just do it in group delay and magnitude?
     #basically since square roots are poorly defined in complex space, you NEED to do it with
-    # the sines and cosines, which I added to tfUtils!
+    # the sines and cosines, which I added to tfUtils! (it works and is correct now)
     antTFFFT = tf.sqrtOfFFT2(antTFFFT)
 
 
@@ -726,7 +726,7 @@ def doPalAnt(chan):
     antTFFFT = tf.fftw.rfft(antTFY)
 
 
-    return antTFX,antTFY#,antTFF,antTFFFT
+    return antTFX,antTFY,antTFF,antTFFFT
 
 
 
@@ -981,8 +981,8 @@ def saveAllNicePlots(allChans):
 #        ax[0].set_xlim([-20,60])
         
         ax[1].cla()
-        ax[1].plot(a3F,tf.calcLogMag(a3F,a3FFT)+20,label="ANITA3",color="red")
-        ax[1].plot(a1F,tf.calcLogMag(a1F,a1FFT),label="ANITA1",color="green") #line em up with nudge
+        ax[1].plot(a3F,tf.calcLogMag(a3F,a3FFT),label="ANITA3",color="red")
+        ax[1].plot(a1F,tf.calcLogMag(a1F,a1FFT)-65,label="ANITA1",color="green") #line em up with nudge
         ax[1].legend()
         ax[1].set_xlabel("frequency (GHz)")
         ax[1].set_ylabel("gain (dB)")
@@ -1255,17 +1255,16 @@ def weinerDeconv(sigInX,sigInY,chan):
 
     #noise from the surf is stored in dBm!!!! (not dBm/Hz)
     noiseF = noiseInF/1000. #in us / MHz which is stupid, so I'll change it (power already f dependant)
-    noiseMag = (10**(noiseLogMag))/1000. #already in dBm I think? so just change to Watts...
+    
 
     sigX,sigY,sigF,sigFFT = importSurf(chan) #this has sigY in Volts (thus sigFFT is in that unit scale too)
-    signalMag = (np.abs(sigFFT)**2) #this is how you get Watts from that!
-    signalMag = signalMag**10
-    signalMag *= 12**10
-    signalMag[:16] = np.ones(16)*signalMag[0]
-    #lets just say this pulser thing has low frequency power
+    signalLogMag = tf.calcLogMag(sigF,sigFFT)+70
+    signalLogMag[:16] = np.ones(16)*signalLogMag[0]
+    #lets just say this pulser thing has no low frequency power
 
 
-    snrMag = signalMag / noiseMag
+    snrMag = 10**(signalLogMag - noiseLogMag)
+
 
     #weiner deconv!
     #G is the deconvolution multiplier I guess
@@ -1279,6 +1278,14 @@ def weinerDeconv(sigInX,sigInY,chan):
     sigOutFFT = sigInFFT * G
     sigOutX,sigOutY = tf.genTimeSeries(sigInF,sigOutFFT)
     
+
+    fig,ax = lab.subplots(2)
+    ax[0].plot(sigInX,sigInY)
+    ax[1].plot(sigOutX,sigOutY)
+    fig.show()
+
+    print "inputPeakRatio",np.max(sigInY**2)/np.mean(sigInY**2)
+    print "outputPeakRatio",np.max(sigOutY**2)/np.mean(sigOutY**2)
 
     return sigOutX,sigOutY,sigInFFT,sigOutFFT,G,snrMag,tfMag
 
@@ -1305,3 +1312,54 @@ def testWeiner():
     fig.show()
 
     return outX,outY
+
+
+def makeWaveform(length=513,dF=5./512):
+
+    """
+    Can I like make a pulse?
+
+    the magnitude should be 1 in our range, and 0 out of it
+    the phase should meet the requirement of:
+    group delay increases by 30ns across our band (I guess) and is always positive
+
+    Tg(w) = -dPhase / dw
+    w = 2*pi*f -> f = w/(2*pi)
+    Tg(f) = -dPhase*2*pi / df
+
+    anyway this isn't how it actually works but is fun to play with
+
+    """
+    
+    #okay so this should get 10GS/s sampling for 1024 samples
+    #in units of GHz
+    fArray = np.arange(0,length)*dF
+
+    magArray = np.ones(length)
+
+    phaseArray = [0]
+    Tgw = -1
+    for i in range(0,len(fArray)):
+        f = fArray[i]
+        if (f > .15) and (f < .2):
+            magArray[i] *= (-np.cos(((f-.15)*np.pi)/.05)+1)/2.
+        elif (f > .2) and (f < 1.2):
+            pass
+        elif (f > 1.2) and (f < 1.25):
+            magArray[i] *= (np.cos(((f-1.2)*np.pi)/.05)+1)/2.
+        else:
+            magArray[i] = 0
+
+    for i in range(0,len(fArray)):
+        f = fArray[i]
+        Tgw += ((3/102.4)*(1-magArray[i]))/(np.pi*2.)
+        phaseArray.append(phaseArray[-1]-Tgw)
+        
+    return fArray,magArray,phaseArray
+
+    fft = tf.gainAndPhaseToComplex(magArray,phaseArray)
+
+    return fArray,fft
+
+        
+    
