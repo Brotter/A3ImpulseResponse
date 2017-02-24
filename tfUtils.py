@@ -83,13 +83,8 @@ def calcLogMag(graphF,graphFFT):
     I somehow messed this up?
     """
 
-<<<<<<< HEAD
-    dF = (graphF[1]-graphF[0])
-    return 10.*np.log10((np.abs(graphFFT)**2/(50.*1000)))
-=======
     dF = (graphF[1]-graphF[0]) * 1e9  # Resolution bandwidth (RBW), converted from GHz to Hz.
     return 10. * np.log10(np.abs(graphFFT)**2 / 5e-2 / dF)
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
     #unfold spectrum (This is done for you in fftw.rfft()):
     #1) discard negative frequencies (second half)
     #2) double all positive frequencies (but not DC (bin 0) and nyquist (bin length/2+1)
@@ -113,11 +108,7 @@ def calcLinMag(graphF,graphSpecMag):
     dF = graphF[1]-graphF[0]
 
     graphLogMag = graphSpecMag*dF
-<<<<<<< HEAD
-    power = 10**(graphLogMag/10.)
-=======
     power = 10**(graphLogMag / 10.)
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
     
     return power
 
@@ -314,12 +305,7 @@ def unwrapPhase(phase):
 
     return phase
 
-<<<<<<< HEAD
 def fftPhaseShift(fft,shift,gdShift=0):
-=======
-
-def fftPhaseShift(fft,shift):
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
     gainLin,phase = complexToGainAndPhase(fft)
     phase = phase+shift+np.arange(0,len(fft))*gdShift
 
@@ -359,30 +345,6 @@ def accumulatePhase(phase):
                 phaseOut[pt2] -= np.pi*2
 
     return phaseOut
-<<<<<<< HEAD
-                   
-def unwrapPhase(phase):
-    """
-    I don't like the np.unwrap() function, it doesn't seem to really work.
-    So I'm gonna just make an opposite to accumulatePhase() function!
-    """
-
-    phaseOut = copy.deepcopy(phase)
-
-    for pt in range(0,len(phase)):
-        if ( phaseOut[pt] > np.pi ):
-            for pt2 in range(pt,len(phase)):
-                phaseOut[pt2] -= np.pi*2
-        elif ( phaseOut[pt] < -np.pi ):
-            print "a",phaseOut[pt]
-            for pt2 in range(pt,len(phase)):
-                phaseOut[pt2] += np.pi*2
-            print "b",phaseOut[pt]
-
-    return phaseOut
-
-=======
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
 
 
 def regenerateCablePhase(phase,dF=5000./512.,length=513):
@@ -402,11 +364,7 @@ def regenerateCablePhase(phase,dF=5000./512.,length=513):
     groupDelayMean = np.mean(groupDelay[:len(groupDelay)/2])
     
     #now, the DC is going to be zero (just because) and everything else is going to DECREASE from there
-<<<<<<< HEAD
-    phaseOut = np.arange(0,length)*(groupDelayMean)
-=======
     phaseOut = np.arange(length)*(-groupDelayMean)*dF
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
 
     return phaseOut
 
@@ -1272,14 +1230,7 @@ def compPhaseShifts3(y=[],center=[],save=False):
 #    shiftedFFT = fftPhaseShift(fft,shifts[maxCausal])
 #    shifted = fftw.irfft(shiftedFFT)
 
-<<<<<<< HEAD
-
-#    return causalityRatio,shifted
-=======
     return causalityRatio,shifted
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
-
-    return
 
 def compPhaseShifts4(y):
 

@@ -33,12 +33,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 
 #directories with antenna pulse data
-<<<<<<< HEAD
-localDir = "/Volumes/ANITA3Data/"
-=======
 localDir = "$HOME/Dropbox/UH Manoa/ANITA/A3ImpulseResponse/calibrationLinks/"
 #localDir = "/Volumes/BenANITA3Data/"
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
 
 roofDir = "Rooftop_Seevey_Antenna/Antenna_Impulse_Testing/"
 currLocalRoofDir=localDir+roofDir+"Attempt_2_02July2012/Hpol/"

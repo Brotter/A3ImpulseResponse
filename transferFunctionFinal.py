@@ -569,13 +569,10 @@ def doSigChainWithCables(chan,savePlots=False):
     #deconvolve cable pulse * cable = scope -> pulse = scope/cable
     #finds just the pulser impulse
     pulseDeconvFFT = scopeFFT/P2SFFT
-
-<<<<<<< HEAD
-
-=======
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
     #Get the cable's (H(f) transfer function for pulser to AMPA)
     # again, the 973 is from tf.compPhaseShifts3()
+
+
     global P2AF
     global P2AFFT
     if type(P2AF) != np.ndarray:
@@ -592,11 +589,7 @@ def doSigChainWithCables(chan,savePlots=False):
 
     surfF,surfFFT = tf.genFFT(surfX,surfY)
 
-<<<<<<< HEAD
-    return surfRawX,surfRawY,surfRawF,surfRawFFT
 
-=======
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
     #deconvolve signal chain transfer function out of that!
     tfFFT = surfFFT/ampaInputFFT
 
@@ -669,15 +662,6 @@ def doPalAnt(chan):
     outF,outFFT = tf.genFFT(outX,outY)
 
     antTFX,antTFY,antTFF,antTFFFT = computeTF(inF,inFFT,outF,outFFT)
-
-<<<<<<< HEAD
-
-    #one antenna should be the square root of the response
-    #cmath can't operate on numpy matricies so I have to iterate by hand
-    #this also doesn't work... maybe I can just do it in group delay and magnitude?
-    #basically since square roots are poorly defined in complex space, you NEED to do it with
-    # the sines and cosines, which I added to tfUtils! (it works and is correct now)
-=======
     """
       one antenna should be the square root of the response
       cmath can't operate on numpy matricies so I have to iterate by hand
@@ -686,9 +670,6 @@ def doPalAnt(chan):
       basically since square roots are poorly defined in complex space, you
       NEED to do it with the sines and cosines, which I added to tfUtils!
     """
-    
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
-    antTFFFT = tf.sqrtOfFFT2(antTFFFT)
 
     """
       Make causal?  no probably not, that seems like a "last thing you do" sort
@@ -706,12 +687,8 @@ def doPalAnt(chan):
     antTFY = tf.hanningTail(antTFY,370,30)
     antTFFFT = tf.fftw.rfft(antTFY)
 
-<<<<<<< HEAD
 
-    return antTFX,antTFY,antTFF,antTFFFT
-=======
     return antTFX,antTFY#,antTFF,antTFFFT
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
 
 
 def doSigChainAndAntenna(chan):
@@ -1211,13 +1188,7 @@ def weinerDeconv(sigInX,sigInY,chan):
     signalLogMag[:16] = np.ones(16)*signalLogMag[0]
     #lets just say this pulser thing has no low frequency power
 
-
-<<<<<<< HEAD
-    snrMag = 10**(signalLogMag - noiseLogMag)
-
-=======
     snrMag = signalMag / noiseMag
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
 
     #weiner deconv!
     #G is the deconvolution multiplier I guess
@@ -1265,7 +1236,6 @@ def testWeiner():
 
     fig.show()
 
-<<<<<<< HEAD
     return outX,outY
 
 
@@ -1318,6 +1288,4 @@ def makeWaveform(length=513,dF=5./512):
 
         
     
-=======
     return outX,outY
->>>>>>> fe4f43d40b46d4240ed4a282ad18b8e84d698899
