@@ -175,7 +175,8 @@ def importChamberAnts(fileName = localDir + roofDir + "HPulse_10degCCW_148p_090t
 
 def importRoofAntIn():
     #Hawaii Rooftop Antenna Input Pulse (FID)
-    fileName = "avgFid.txt"
+    fileName = A3Dir + "avgFid.txt"
+#    fileName = "avgFid.txt"
     dataX,dataY = np.loadtxt(fileName).T
 
     #make the time range start at zero
@@ -189,7 +190,8 @@ def importRoofAntIn():
 
 def importRoofAntOut():
     #Hawaii Rooftop Antenna Input Pulse (Ant)
-    fileName = "avgAnt.txt"
+    fileName = A3Dir + "avgAnt.txt"
+#    fileName = "avgAnt.txt"
     dataX,dataY = np.loadtxt(fileName).T
 
     #make the time range start at zero

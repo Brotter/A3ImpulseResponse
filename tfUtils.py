@@ -307,7 +307,7 @@ def unwrapPhase(phase):
 
 def fftPhaseShift(fft,shift,gdShift=0):
     gainLin,phase = complexToGainAndPhase(fft)
-    phase = phase+shift+np.arange(0,len(fft))*gdShift
+    phase = phase+shift+np.arange(len(fft))*gdShift
 
     fft = gainAndPhaseToComplex(gainLin,phase)
     return fft
@@ -571,7 +571,7 @@ def convolve(grA,grB):
     oldLength = len(grA)
     newLength = len(grA)+2*len(grB)
     #zero pad wants an x array too, don't need it though
-    fart,grA = zeroPadEqual(np.arange(oldLength),grA,newLength)
+    fart,grA = zeroPadEqual(np.arange(oldLength), grA, newLength)
 
     grOut = []
 
@@ -616,7 +616,7 @@ def laplace(graphX,graphY):
             value += np.exp(-s*t)*ft
         outGraphY.append(value)
         
-    return outGraphX,outGraphY
+    return outGraphX, outGraphY
 
 
 def correlation(graphA,graphB):
@@ -751,7 +751,7 @@ def fitAndPinpoint(xCorrY,windowSize=2):
 
     #plot it for a sanity check
 #    lab.plot(xCorrY)
-    upsampleX = np.arange(-windowSize*10,windowSize*10+0.01,0.01)
+    upsampleX = np.arange(-windowSize * 10, windowSize * 10 + 0.01, 0.01)
 #    print "max="+str(params[1])+" peak="+str(peakValue)
 
     #Now the params you are returning are
@@ -777,7 +777,6 @@ def shiftWaveform(yData,offset):
         yData = yData[-offset:]
         for i in range(0,-offset):
             yData = np.append(yData,0)
-
 
 #    print length," ",len(yData)
     return yData
@@ -1228,7 +1227,8 @@ def compPhaseShifts3(y=[],center=[],save=False):
 #    shiftedFFT = fftPhaseShift(fft,shifts[maxCausal])
 #    shifted = fftw.irfft(shiftedFFT)
 
-    return causalityRatio,shifted
+    return causalityRatio, shifted
+
 
 def compPhaseShifts4(y):
 
