@@ -960,7 +960,6 @@ def complexZeroPadAndResample(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1
 
 #    print outputReal
 
-
 #    fig,ax = lab.subplots()
 #    ax.plot(outputF,outputReal,'-',label="output")
 #    ax.plot(inputF,inputReal,'.',label="input")
@@ -1198,7 +1197,6 @@ def compPhaseShifts3(y=[],center=[],save=False):
 #        ax[2][0].plot(np.real(shiftedFFT),label="real")
 #        ax[2][0].plot(np.imag(shiftedFFT),label="imag")
 #        ax[2][0].legend()
-
 
         #time domain "zeropoint" peak ratio
 #        maxes.append(np.max(shifted))

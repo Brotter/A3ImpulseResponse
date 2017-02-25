@@ -41,8 +41,19 @@ try:
 except:
     print "You don't have seaborn but thats okay!"
 
+
+#==============================================================================
+# Directories which are referred to in this script.
+#==============================================================================
+
+# Main directory to find impulse response data.
+refDir = "$HOME/Dropbox/UH Manoa/ANITA/anitaImpulseResponses/"
+
+# Directory where data saved in GitHub reposity for A3ImpulseResponse.
+A3Dir = refDir + "A3ImpulseResponse/"
+
 #directories with antenna pulse data
-localDir = "$HOME/Dropbox/UH Manoa/ANITA/A3ImpulseResponse/calibrationLinks/"
+localDir = refDir + "calibrationLinks/"
 #localDir = "/Volumes/BenANITA3Data/"
 
 #where the cable info is stored
@@ -72,21 +83,24 @@ chamberBoresightPulse = localDir + chamberIdentDir + "Impulse_p180Deg_t090Deg_22
 #==============================================================================
 
 def importANITA1():
-    a1 = np.loadtxt("ANITA1ImpulseResponse.dat")
-    return a1.T[0]*1e9,a1.T[1]
+    a1 = np.loadtxt(A3Dir + "ANITA1ImpulseResponse.dat")
+#    a1 = np.loadtxt("ANITA1ImpulseResponse.dat")
+    return a1.T[0]*1e9, a1.T[1]
 
 
 def findPalestineAntennaFile(chan,inOrOut):
-    
-    antennaInfo = np.loadtxt("antennaInformation_cut.csv",dtype=str,delimiter=",")
+    antennaInfo = np.loadtxt(A3Dir + "antennaInformation_cut.csv",
+                             dtype = str, delimiter = ",")    
+#    antennaInfo = np.loadtxt("antennaInformation_cut.csv",dtype=str,delimiter=",")
 
     antennaNumber = int(antennaInfo.T[1][np.argwhere(antennaInfo.T[2]==chan[:3])[0][0]][1:])
 
-    print chan+" maps to antenna number "+str(antennaNumber)
+    print chan + " maps to antenna number " + str(antennaNumber)
         
-    dir = "/Volumes/ANITA3Data/palestine14/SeaveyAntennas/S21s/"
+    dir = localDir + "SeaveyAntennas/S21s/"
+#    dir = "/Volumes/ANITA3Data/palestine14/SeaveyAntennas/S21s/"
         
-    fileName = dir+chan[-1].lower()+"pol_ezLinks/rxp"+str(antennaNumber).zfill(2)
+    fileName = dir + chan[-1].lower() + "pol_ezLinks/rxp" + str(antennaNumber).zfill(2)
     if inOrOut == "in":
         fileName = fileName +"_inputPulse.csv"
     if inOrOut == "out":
@@ -132,15 +146,14 @@ def importPalAntOut(chan):
     #also I always want to have the fourier spaces of these things
     dataF,dataFFT = tf.genFFT(dataX,dataY)
 
+    return dataX, dataY, dataF, dataFFT
 
-    return dataX,dataY,dataF,dataFFT
 
-
-def importChamberAnts(fileName=localDir+roofDir+"HPulse_10degCCW_148p_090t_10dBatt.dat",numEvents=-1,channel=0):
+def importChamberAnts(fileName = localDir + roofDir + "HPulse_10degCCW_148p_090t_10dBatt.dat",numEvents=-1,channel=0):
     """
     I always need to write more parsers, always be parsing (ABP)
     """
-    print "Importing locally -> "+fileName
+    print "Importing locally -> " + fileName
 
     events = []
     event = ""
@@ -172,7 +185,7 @@ def importRoofAntIn():
     #also I always want to have the fourier spaces of these things
     dataF,dataFFT = tf.genFFT(dataX,dataY)
         
-    return dataX,dataY,dataF,dataFFT
+    return dataX, dataY, dataF, dataFFT
                 
 
 def importRoofAntOut():
@@ -184,14 +197,14 @@ def importRoofAntOut():
     dataX -= dataX[0]
 
     #also I always want to have the fourier spaces of these things
-    dataF,dataFFT = tf.genFFT(dataX,dataY)
+    dataF,dataFFT = tf.genFFT(dataX, dataY)
         
-    return dataX,dataY,dataF,dataFFT
+    return dataX, dataY, dataF, dataFFT
 
 
 def importSurf(chan):
     #LAB chip from the SURF
-    fileName = waveformDir+chan+"_avgSurfWaveform.txt"
+    fileName = waveformDir + chan + "_avgSurfWaveform.txt"
     dataX,dataY = np.loadtxt(fileName).T
     
     dataY /= 1000 #mv->V
@@ -202,12 +215,12 @@ def importSurf(chan):
     #also I always want to have the fourier spaces of these things
     dataF,dataFFT = tf.genFFT(dataX,dataY)
         
-    return dataX,dataY,dataF,dataFFT
+    return dataX, dataY, dataF, dataFFT
     
 
 def importScope(chan):
     #Calibration Scope
-    fileName = waveformDir+chan+"_avgScopeWaveform.txt"
+    fileName = waveformDir + chan + "_avgScopeWaveform.txt"
     dataX,dataY = np.loadtxt(fileName).T
 
     dataX *= 1e9 #s ->ns
@@ -235,7 +248,6 @@ def getCables(fileName,dF=5000./512.,length=513):
 
     """
 
-
     cableFreq,cableGainLin,cablePhase = s2pParser(cablesBaseDir + fileName)
 
     cableNewFreq = np.arange(0,length)*dF
@@ -251,7 +263,6 @@ def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
     """
 
     I'm going to depreciate this because it doesn't really work: use getCables() instead
-
 
     A wrapper for getting the network analyzer data for the cables
 
@@ -326,8 +337,6 @@ def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
     elif resample=="fftFit":
         fOut,fftOut = tf.fitAndRegenFFT(fOut,fftOut)
 
-
-
     return fOut,fftOut
 
 
@@ -350,7 +359,6 @@ def s2pParser(fileName):
 #    ax[1].plot(phase)
 #    fig.show()
                 
-
     return np.array(freq),np.array(gainLin),np.array(phase)
 
 
@@ -360,8 +368,10 @@ def s2pParser(fileName):
 
 def processWaveform(graphT,graphV,source):
     """
-    Single functions to do lots of things!  Input what the "source" is and it will do the type
-    of processing that you want :)  This is also a good way to make a sort of "table" to deterimine
+    Single functions to do lots of things!  Input what the "source" is and it
+    will do the type of processing that you want :)
+
+    This is also a good way to make a sort of "table" to deterimine
     what exactly is being done for each different type of source waveform
     """
 
@@ -509,7 +519,6 @@ def processWaveform(graphT,graphV,source):
     if kZeroStart:
         graphT -= graphT[0]
 
-        
     return graphT,graphV
 
 
@@ -526,7 +535,6 @@ P2SF = False
 P2SFFT = False
 P2AF = False
 P2AFFT = False
-
 
 def doSigChainWithCables(chan,savePlots=False):
     #phase shifts are likely pointless!
@@ -572,7 +580,6 @@ def doSigChainWithCables(chan,savePlots=False):
     #Get the cable's (H(f) transfer function for pulser to AMPA)
     # again, the 973 is from tf.compPhaseShifts3()
 
-
     global P2AF
     global P2AFFT
     if type(P2AF) != np.ndarray:
@@ -588,7 +595,6 @@ def doSigChainWithCables(chan,savePlots=False):
     surfX,surfY = processWaveform(surfRawX,surfRawY,"surf")
 
     surfF,surfFFT = tf.genFFT(surfX,surfY)
-
 
     #deconvolve signal chain transfer function out of that!
     tfFFT = surfFFT/ampaInputFFT
@@ -669,9 +675,7 @@ def doPalAnt(chan):
       magnitude?
       basically since square roots are poorly defined in complex space, you
       NEED to do it with the sines and cosines, which I added to tfUtils!
-    """
-
-    """
+      
       Make causal?  no probably not, that seems like a "last thing you do" sort
       of technique
     """
@@ -686,7 +690,6 @@ def doPalAnt(chan):
     antTFY = np.roll(antTFY,20-np.argmax(antTFY))
     antTFY = tf.hanningTail(antTFY,370,30)
     antTFFFT = tf.fftw.rfft(antTFY)
-
 
     return antTFX,antTFY#,antTFF,antTFFFT
 
@@ -723,10 +726,10 @@ def doSigChainAndAntenna(chan):
 
 def computeTF(inF,inFFT,outF,outFFT):
     """
-    Generating the transfer function is always the same, so it gets its own class
-    Comparable to "deconvwnr()" in matlab (nearly identical)
+      Generating the transfer function is always the same, so it gets its own class
+      Comparable to "deconvwnr()" in matlab (nearly identical)
     
-    It has a bunch of other things you can uncomment to use, but most end up being dumb
+      It has a bunch of other things you can uncomment to use, but most end up being dumb
     """
         #then generate the transfer function!
         #In(f)*H(f) = Out(f) -> H(f) = Out(f)/In(f)
@@ -739,19 +742,19 @@ def computeTF(inF,inFFT,outF,outFFT):
 
     tfX = np.arange(0,len(tfY))*(1./(2.*tfF[-1]))
 
-        """
-          We can also try "cleaning it up" if we want, these lettered things
-          basically do that.
-
-          A) the group delay offset of this fft is going to be weird, it is the
-          addition of the phase offset for both of them (I think?)
-          so I have to roll it back a bit or it will wrap around the window,
-          probably by the mean of the group delay!
-        """
+    """
+      We can also try "cleaning it up" if we want, these lettered things
+      basically do that.
+      
+      A) the group delay offset of this fft is going to be weird, it is the
+      addition of the phase offset for both of them (I think?)
+      so I have to roll it back a bit or it will wrap around the window,
+      probably by the mean of the group delay!
+    """
 
     tfGrpDlyMean = np.mean(tf.calcGroupDelay(tfF,tfFFT))
     dT = tfX[1]-tfX[0]
-    print "tfGrpDlyMeanPt="+str(tfGrpDlyMean)
+    print "tfGrpDlyMeanPt=" + str(tfGrpDlyMean)
 
         #roll it backwards, 1/8th off window (the mean is at the middle I think)
     try:
@@ -777,9 +780,7 @@ def computeTF(inF,inFFT,outF,outFFT):
 
 
 def doTheWholeShebang():
-    """
-    Generate the transfer function for all the channels!
-    """
+    # Generate the transfer function for all the channels!
     chans = np.loadtxt("chanList.txt",dtype=str)
     allChans = {}
     for chan in chans:
@@ -794,9 +795,7 @@ def doTheWholeShebang():
 
 
 def doAllSigChains():
-    """
-    just does all the signal chains without the antennas
-    """
+    # just does all the signal chains without the antennas
     chans = np.loadtxt("chanList.txt",dtype=str)
     allChans = {}
     for chan in chans:
@@ -809,9 +808,7 @@ def doAllSigChains():
 
 
 def doAllAntennas():
-    """
-    just does all the palestine antennas
-    """
+    # just does all the palestine antennas
     chans = np.loadtxt("chanList.txt",dtype=str)
     allChans = {}
     for chan in chans:
@@ -873,7 +870,8 @@ def writeAll(allChans):
 
 def saveAllNicePlots(allChans):
     """
-    Saves a bunch of plots that I made so I can find channels that didn't work correctly
+      Saves a bunch of plots that I made so I can find channels that didn't
+      work correctly
     """
 
     lab.rcParams['figure.figsize'] = [16.0,11.0]
@@ -934,9 +932,9 @@ def saveAllNicePlots(allChans):
 
 def plotCompare(allChans):
     """
-    Plot a comparison of all the channels in a way that is sort of easy to see
-    Also has a good way to exclude channels that you think are "bad" (so you
-    can fix them later of course)
+      Plot a comparison of all the channels in a way that is sort of easy to see
+      Also has a good way to exclude channels that you think are "bad" (so you
+      can fix them later of course)
     """
 
     lab.close("all")
@@ -1020,9 +1018,12 @@ def plotCompare(allChans):
 
 def phaseShifts(waveform):
     """
-    The group delay and magnitude are what is effected by the signal chain and antennas, the absolute phase is not
-    I'm just playing with creating more causal signals by uniformly shifting the phase of the entire complex domain
-    It doesn't really work and isn't really the right thing to do, but is fun to mess with
+      The group delay and magnitude are what is effected by the signal chain
+      and antennas, the absolute phase is not
+      I'm just playing with creating more causal signals by uniformly shifting
+      the phase of the entire complex domain
+      It doesn't really work and isn't really the right thing to do, but is fun
+      to mess with
     """
 
 #    shifts = np.arange(0,np.pi*2,0.01)
@@ -1143,7 +1144,6 @@ def calibrationPulseSignal(chan):
     #1.26 is the max coherance phase?
 #    scopeFFT = tf.fftPhaseShift(scopeFFT,1.26)
 
-
     #Get the cable's (H(f) transfer function for pulser to scope)
     #The 17 (for the "center") is from tf.compPhaseShifts3(), which makes a nice film of where the 
     # phase center is
@@ -1153,8 +1153,6 @@ def calibrationPulseSignal(chan):
         print "Getting Pulser to Scope Cables..."
         P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
 
-
-
     #deconvolve cable pulse * cable = scope -> pulse = scope/cable
     #finds just the pulser impulse
     pulseDeconvFFT = scopeFFT/P2SFFT
@@ -1162,15 +1160,15 @@ def calibrationPulseSignal(chan):
     return P2SF,pulseDeconvFFT
 
 
-def weinerDeconv(sigInX,sigInY,chan):
+def weinerDeconv(sigInX, sigInY, chan):
     """
-    A weiner deconvolution!
-    sigIn: The signal you want to deconvolve (from SURF probably, in time domain?)
-    chan, which loads:
-    tfIn:  The transfer function of the system (from autoPlots, in time domain)
-    noiseIn: The snr for each frequency (from surfNoise, in log mag)
-    
-    and uses those to generate snrIn, which is then used to do deconvolution
+      A weiner deconvolution!
+      sigIn: The signal you want to deconvolve (from SURF probably, in time domain?)
+      chan, which loads:
+      tfIn:  The transfer function of the system (from autoPlots, in time domain)
+      noiseIn: The snr for each frequency (from surfNoise, in log mag)
+      
+      and uses those to generate snrIn, which is then used to do deconvolution
     """
     baseDir = "/Users/brotter/Science/ANITA/ANITA3/benCode/analysis/impulseResponse/integratedTF/"
     tfIn = np.loadtxt(baseDir+"autoPlots/A3ImpulseResponse/"+chan+".txt").T
@@ -1182,7 +1180,6 @@ def weinerDeconv(sigInX,sigInY,chan):
     #noise from the surf is stored in dBm!!!! (not dBm/Hz)
     noiseF = noiseInF/1000. #in us / MHz which is stupid, so I'll change it (power already f dependant)
     
-
     sigX,sigY,sigF,sigFFT = importSurf(chan) #this has sigY in Volts (thus sigFFT is in that unit scale too)
     signalLogMag = tf.calcLogMag(sigF,sigFFT)+70
     signalLogMag[:16] = np.ones(16)*signalLogMag[0]
@@ -1196,13 +1193,11 @@ def weinerDeconv(sigInX,sigInY,chan):
     weiner /= (tfMag**2)+(1./snrMag)
     G = weiner/tfFFT
 
-
     sigInF,sigInFFT = tf.genFFT(sigInX,sigInY)
 
     sigOutFFT = sigInFFT * G
     sigOutX,sigOutY = tf.genTimeSeries(sigInF,sigOutFFT)
     
-
     fig,ax = lab.subplots(2)
     ax[0].plot(sigInX,sigInY)
     ax[1].plot(sigOutX,sigOutY)
@@ -1240,20 +1235,18 @@ def testWeiner():
 
 
 def makeWaveform(length=513,dF=5./512):
-
     """
-    Can I like make a pulse?
+      Can I like make a pulse?
+      
+      the magnitude should be 1 in our range, and 0 out of it
+      the phase should meet the requirement of:
+      group delay increases by 30ns across our band (I guess) and is always positive
 
-    the magnitude should be 1 in our range, and 0 out of it
-    the phase should meet the requirement of:
-    group delay increases by 30ns across our band (I guess) and is always positive
-
-    Tg(w) = -dPhase / dw
-    w = 2*pi*f -> f = w/(2*pi)
-    Tg(f) = -dPhase*2*pi / df
-
-    anyway this isn't how it actually works but is fun to play with
-
+      Tg(w) = -dPhase / dw
+      w = 2*pi*f -> f = w/(2*pi)
+      Tg(f) = -dPhase*2*pi / df
+      
+      anyway this isn't how it actually works but is fun to play with
     """
     
     #okay so this should get 10GS/s sampling for 1024 samples
@@ -1286,6 +1279,4 @@ def makeWaveform(length=513,dF=5./512):
 
     return fArray,fft
 
-        
-    
     return outX,outY
