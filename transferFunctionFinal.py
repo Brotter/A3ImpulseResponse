@@ -139,7 +139,6 @@ def importPalAntOut(chan):
     dataY *= 100 #there is something super wrong with the scaling, 20mV Vpp, 15uV resolution?  Weird...
     dataY *= -1 #also the polarity is flipped?  Look in log book to see if this is right...
 
-
     #make the time range start at zero
     dataX -= dataX[0]
 
