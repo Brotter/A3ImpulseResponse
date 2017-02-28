@@ -41,7 +41,6 @@ try:
 except:
     print "You don't have seaborn but thats okay!"
 
-
 #==============================================================================
 # Directories which are referred to in this script.
 #==============================================================================
