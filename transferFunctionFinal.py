@@ -663,14 +663,18 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
     if showPlots or savePlots:
         fig3,ax3 = lab.subplots(2)
 
-        ax3[0].plot(surfX,surfY,label="processed")
-        ax3[0].plot(surfRawX,surfRawY,label="raw")
+        ax3[0].plot(surfX,surfY,label="processed SURF waveform",color="red")
+        ax3[0].plot(surfRawX,surfRawY,label="raw SURF waveform",color="blue")
+        ax3[0].plot(tfX,np.roll(tfY,100),label="Signal Chain Transfer Function",color="black")
         ax3[0].set_ylabel("Voltage (V)")
+        ax3[0].set_xlabel("time (ns)")
         ax3[0].legend()
 
-        ax3[1].plot(tfX,np.roll(tfY,100),label="Final Transfer Function")
-        ax3[1].set_xlabel("time (ns)")
-        ax3[1].set_ylabel("Voltage (V)")
+        ax3[1].set_ylabel("Power (dB)")
+        ax3[1].set_xlabel("Frequency (MHz)")
+        ax3[1].plot(surfF,tf.calcLogMag(surfF,surfFFT),label="processed SURF waveform",color="red")
+        ax3[1].plot(surfF,tf.calcLogMag(surfF,tfFFT),label="Signal Chain Transfer Function",color="black")
+        ax3[1].set_ylim([-100,-50])
         ax3[1].legend()
 
 
