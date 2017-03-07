@@ -763,13 +763,13 @@ def doPalAnt(chan):
     #clean up the tail and make it start at the beginning
     print "doing hanning window"
     antTFY = np.roll(antTFY,20-np.argmax(antTFY))
-    antTFY = tf.hanningTail(antTFY,370,30)
+    antTFY = tf.hanningTail(antTFY,20,20)
     antTFFFT = tf.fftw.rfft(antTFY)
 
     return antTFX,antTFY,antTFF,antTFFFT
 
 
-def doSigChainAndAntenna(chan,plot=True):
+def doSigChainAndAntenna(chan,showPlots=False):
     #get antenna
 #    antX,antY,antF,antFFT = doRoofAntWithCables()
     antX,antY,antF,antFFT = doPalAnt(chan)
@@ -784,12 +784,15 @@ def doSigChainAndAntenna(chan,plot=True):
     a3X,a3Y = tf.genTimeSeries(a3F,a3FFT)
     
 
-    if (plot):
+    if (showPlots):
+        lab.close("all")
         fig,ax = lab.subplots(3)
-        
-        ax[0].plot(antX,antY)
-        ax[1].plot(sigChainX,sigChainY)
-        ax[2].plot(a3X,a3Y)
+        ax[0].plot(antX,np.roll(antY,100),label="Antenna")
+        ax[0].legend()
+        ax[1].plot(sigChainX,np.roll(sigChainY,100),label="sigChain",color="red")
+        ax[1].legend()
+        ax[2].plot(a3X,np.roll(a3Y,100),label="Convolution",color="black")
+        ax[2].legend()
         fig.show()
 
 
@@ -868,9 +871,10 @@ def doTheWholeShebang():
     # Generate the transfer function for all the channels!
     chans = np.loadtxt("chanList.txt",dtype=str)
     allChans = {}
+    lab.close("all")
     for chan in chans:
         try:
-            allChans[chan] = doSigChainAndAntenna(chan)
+            allChans[chan] = doSigChainAndAntenna(chan,showPlots=True)
         except:
             print chan+" FAILED"
     
