@@ -510,7 +510,7 @@ def calcGroupDelay(inputFFT,inputF=[],dF=-1):
 
 def calcGroupDelayFromPhase(phase,dF=1):
 
-    GrpDly = -np.diff(phase)/(2*np.pi*dF)
+    GrpDly = -np.diff(phase) / (2 * np.pi * dF)
 
     return GrpDly
 
@@ -596,7 +596,7 @@ def printTimeDomainToFile(x,y,file):
     return
 
 
-def convolve(grA,grB):
+def convolve(grA, grB):
     """
     I should write my own deconvolution algorithm if it is so easy
 
@@ -1188,7 +1188,6 @@ def phaseShiftMovie(save=False):
     compPhaseShifts3(waveY,len(waveY),save=save)
 
 
-
 def compPhaseShifts3(y=[],center=[],save=False):
 
     #set up defaults
@@ -1200,14 +1199,12 @@ def compPhaseShifts3(y=[],center=[],save=False):
         center = len(y)/2
 
 
-
     #get the fourier domain
     fft = fftw.rfft(y)
 
     #From Peter:  For group delay you should choose the mean centroid of the pulses as the reference time, then the delay skew will be minimized. The phase plot will be redundant once you get the group delay tuned correctly (eg. dphi/domega is more useful than phi(omega))
     # so I need to 
     
-
     maxes  = []
     mins   = []
     maxLoc = []
@@ -1247,7 +1244,6 @@ def compPhaseShifts3(y=[],center=[],save=False):
         ax[2].plot(np.angle(shiftedFFT[1:]))
         ax[2].set_ylabel("Phase (radians)")
         ax[2].set_xlabel("Frequency (arbitrary)")
-        
 
 #        ax[1][0].plot(10.*np.log10((np.abs(shiftedFFT[1:-1])**2)))
 
