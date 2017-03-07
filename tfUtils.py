@@ -17,7 +17,10 @@ from scipy.interpolate import interp1d, Akima1DInterpolator
 
 import copy
 
-import seaborn as sns
+try:
+    import seaborn as sns
+except:
+    pass
 
 try:
     import pyfftw.interfaces.numpy_fft as fftw
@@ -1262,7 +1265,10 @@ def compPhaseShifts3(y=[],center=[],save=False):
 
 def compPhaseShifts4(y):
 
-    sns.set_palette(sns.color_palette("husl",20))
+    try:
+        sns.set_palette(sns.color_palette("husl",20))
+    except:
+	pass
 
     fig,ax = lab.subplots()
     

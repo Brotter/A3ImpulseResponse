@@ -46,21 +46,18 @@ except:
 # Directories which are referred to in this script.
 #==============================================================================
 
-# Main directory to find impulse response data.
-refDir = "$HOME/Dropbox/UH Manoa/ANITA/anitaImpulseResponses/"
-
 # Directory where data saved in GitHub reposity for A3ImpulseResponse.
-A3Dir = refDir + "A3ImpulseResponse/"
+A3Dir = "./"
 
-#directories with antenna pulse data
-localDir = refDir + "calibrationLinks/"
+# Directories with antenna pulse data.
+localDir = "../calibrationLinks/"
 #localDir = "/Volumes/BenANITA3Data/"
 
-#where the cable info is stored
+# Where the cable info is stored.
 cablesBaseDir = localDir + "S21ExternalRFChainForSingleChannelCallibration/"
 #cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
 
-#signal chain data (57dB seems to be a happy middle power)
+# Signal chain data (57dB seems to be a happy middle power).
 waveformDir = localDir + "waveforms_57dB/"
 #waveformDir = "/Users/brotter/benCode/impulseResponse/integratedTF/waveforms_57dB/"
 
@@ -88,7 +85,7 @@ def importANITA1():
     return a1.T[0]*1e9, a1.T[1]
 
 
-def findPalestineAntennaFile(chan,inOrOut):
+def findPalestineAntennaFile(chan, inOrOut):
     antennaInfo = np.loadtxt(A3Dir + "antennaInformation_cut.csv",
                              dtype = str, delimiter = ",")    
 #    antennaInfo = np.loadtxt("antennaInformation_cut.csv",dtype=str,delimiter=",")
@@ -102,9 +99,9 @@ def findPalestineAntennaFile(chan,inOrOut):
         
     fileName = dir + chan[-1].lower() + "pol_ezLinks/rxp" + str(antennaNumber).zfill(2)
     if inOrOut == "in":
-        fileName = fileName +"_inputPulse.csv"
+        fileName += "_inputPulse.csv"
     if inOrOut == "out":
-        fileName = fileName +"_coPol.csv"
+        fileName += "_coPol.csv"
  
     return fileName
 
@@ -124,14 +121,14 @@ def importPalAntIn(chan):
     dataX -= dataX[0]
 
     #also I always want to have the fourier spaces of these things
-    dataF,dataFFT = tf.genFFT(dataX,dataY)
+    dataF, dataFFT = tf.genFFT(dataX,dataY)
 
     return dataX,dataY,dataF,dataFFT
 
 
 def importPalAntOut(chan):
 
-    fileName = findPalestineAntennaFile(chan,"out")
+    fileName = findPalestineAntennaFile(chan, "out")
 
     dataX,dataY = np.loadtxt(fileName,comments="\"",delimiter=",",usecols=(3,4)).T
 
@@ -205,7 +202,7 @@ def importRoofAntOut():
 
 def importSurf(chan):
     #LAB chip from the SURF
-    fileName = waveformDir + chan + "_avgSurfWaveform.txt"
+    fileName = waveformDir + str(chan) + "_avgSurfWaveform.txt"
     dataX,dataY = np.loadtxt(fileName).T
     
     dataY /= 1000 #mv->V
@@ -221,7 +218,7 @@ def importSurf(chan):
 
 def importScope(chan):
     #Calibration Scope
-    fileName = waveformDir + chan + "_avgScopeWaveform.txt"
+    fileName = waveformDir + str(chan) + "_avgScopeWaveform.txt"
     dataX,dataY = np.loadtxt(fileName).T
 
     dataX *= 1e9 #s ->ns
