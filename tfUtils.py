@@ -104,11 +104,21 @@ def calcLogMag(graphF,graphFFT):
 #    return dBm
     
 
-def calcLinMag(graphF,graphSpecMag):
+
+def calcLinMagFromFFT(fft):
+    mag = np.absolute(fft)
+
+    return mag
+
+
+def calcLinMagFromLogMag(graphSpecMag,dF=-1):
     """
     It might be nice to have a way to reverse this (and return power in watts)
     """
-    dF = graphF[1]-graphF[0]
+    if (dF == -1):
+        print "Using 1 for dF in tfUtils.calcLinMag()"
+        dF = 1
+        
 
     graphLogMag = graphSpecMag*dF
     power = 10**(graphLogMag / 10.)
@@ -350,7 +360,18 @@ def accumulatePhase(phase):
     return phaseOut
 
 
-def regenerateCablePhase(phase,dF=5000./512.,length=513):
+def regenerateCable(f,fft,dF=5000./512,length=513):
+    phase = calcPhase(fft)
+    mag = calcLinMagFromFFT(fft) 
+
+    newPhase = regenerateCablePhase(f,phase,dF=dF,length=length)
+    newMag = regenerateCableLinMag(f,mag,dF=dF,length=length)
+
+    fftNew = gainAndPhaseToComplex(newMag,newPhase)
+
+    return fftNew
+
+def regenerateCablePhase(f,phase,dF=5000./512.,length=513):
     """
     A cable has a very flat group delay (Tg(w)), so we should, instead of trying to resample it,
     just regenerate the phase entirely of a cable using the measured phase
@@ -361,13 +382,20 @@ def regenerateCablePhase(phase,dF=5000./512.,length=513):
     freq domain: dF = 5000/512 and length=513
     """
 
-    aPhase = accumulatePhase(phase)
-    groupDelay = np.diff(aPhase)
     #only use the first half for determining the mean, since it gets noisier at the ends 
-    groupDelayMean = np.mean(groupDelay[:len(groupDelay)/2])
+    #    groupDelayMean = np.mean(groupDelay[:len(groupDelay)/2])
     
-    #now, the DC is going to be zero (just because) and everything else is going to DECREASE from there
-    phaseOut = np.arange(length)*(-groupDelayMean)*dF
+    #or do a fit!
+    phaseNew = minimizeGroupDelayFromPhase(f,phase)
+
+    #now do a spline on that I guess
+    phaseOutInterp = Akima1DInterpolator(f*1000.,phaseNew)
+
+    outF = np.arange(length)*dF
+    phaseOut = phaseOutInterp(outF)
+
+    #out of range it should be zero I guess
+    phaseOut = np.nan_to_num(phaseOut)
 
     return phaseOut
 
@@ -463,14 +491,14 @@ def sqrtOfFFT1(fft):
     return np.array(out)
 
 
-def calcGroupDelay(inputFFT,inputF=-1,dF=-1):
+def calcGroupDelay(inputFFT,inputF=[],dF=-1):
 
     phase = calcPhase(inputFFT)
     
-    if inputF != -1 and dF != -1:
+    if inputF != [] and dF != -1:
         print "WARNING IN tfUtils::calcGroupDelay - I'm going to use inputF to generate dF even though you also gave me dF"
 
-    if  inputF != -1:
+    if  inputF != []:
         dF = inputF[1]-inputF[0]
     if dF == -1:
         dF = 0.1 #sure why not
@@ -482,7 +510,7 @@ def calcGroupDelay(inputFFT,inputF=-1,dF=-1):
 
 def calcGroupDelayFromPhase(phase,dF=1):
 
-    GrpDly = -np.diff(phase)/2*np.pi*dF
+    GrpDly = -np.diff(phase)/(2*np.pi*dF)
 
     return GrpDly
 
@@ -1292,26 +1320,42 @@ def compPhaseShifts4(y):
     return
 
 
+def minimizeGroupDelayFromFFT(f,fft):
 
-def minimizeGroupDelay():
-
-    wave = np.loadtxt("autoPlots/15TV.txt")
-
-    waveX = wave.T[0]
-    waveY = wave.T[1]
-
-    f,fft = genFFT(waveX,waveY)
-
+    gain = np.absolute(fft)
     phase = calcPhase(fft)
     gdOrig = calcGroupDelay(fft)
+
+    phaseNew = minimizeGroupDelayFromPhase(f,phase)
     
-    dF = (f[1]-f[0])*1000
-    print "dF: ",dF
+    fftNew = gainAndPhaseToComplex(gain,phase)
 
-    phaseFit = mf.fitLin(f[20:124],phase[20:124],[0,0,0])
+    return fftNew
+    
+
+def minimizeGroupDelayFromPhase(f,phase):
+
+    #limits are to try and just fit for our band
+    phaseFit = mf.fitLin(f[30:114],phase[30:114],[0,0,0])
     phaseCorr = mf.lambdaLin(phaseFit[0],f)
+    phaseNew = phase - phaseCorr
 
-    figs,axes = lab.subplots(2)
+    return phaseNew
+
+
+def plotMinimizedGroupDelay(f,fft):
+
+
+    gain = np.absolute(fft)
+    phase = calcPhase(fft)
+    gdOrig = calcGroupDelay(fft)
+
+    fftNew = minimizeGroupDelayFromFFT(f,fft)
+    gainNew = np.absolute(fftNew)
+    phaseNew = calcPhase(fftNew)
+    gdNew = calcGroupDelay(fftNew)
+
+    figs,axes = lab.subplots(3)
 
     axes[0].set_ylabel("cumulative phase (radians)")
     axes[0].set_xlabel("Frequency (GHz)")
@@ -1321,7 +1365,6 @@ def minimizeGroupDelay():
 
     phaseNew = phase - phaseCorr
     gdNew  = calcGroupDelayFromPhase(phaseNew)
-
 
     axes[1].set_xlabel("Frequency (GHz)")
     axes[1].set_ylabel("Group Dleay (ns)")
@@ -1333,8 +1376,23 @@ def minimizeGroupDelay():
     twinAx.legend()
 
 
+    fftNew = gainAndPhaseToComplex(gain,phaseNew)
+    waveYNew = fftw.irfft(fftNew)
+
+    axes[2].plot(waveX,waveY,label="orig")
+    axes[2].plot(waveX,waveYNew,label="minimize gd")
+    axes[2].legend()
+
     figs.show()
 
     return
                          
 
+def exampleMinimizePlot():
+
+    wave = np.loadtxt("autoPlots/15TV.txt")
+
+    waveX = wave.T[0]
+    waveY = wave.T[1]
+
+    f,fft = genFFT(waveX,waveY)

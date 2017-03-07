@@ -50,16 +50,16 @@ except:
 A3Dir = "./"
 
 # Directories with antenna pulse data.
-localDir = "../calibrationLinks/"
-#localDir = "/Volumes/BenANITA3Data/"
+#localDir = "../calibrationLinks/"
+localDir = "/Volumes/ANITA3Data/"
 
 # Where the cable info is stored.
-cablesBaseDir = localDir + "S21ExternalRFChainForSingleChannelCallibration/"
-#cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
+#cablesBaseDir = localDir + "S21ExternalRFChainForSingleChannelCallibration/"
+cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
 
 # Signal chain data (57dB seems to be a happy middle power).
-waveformDir = localDir + "waveforms_57dB/"
-#waveformDir = "/Users/brotter/benCode/impulseResponse/integratedTF/waveforms_57dB/"
+#waveformDir = localDir + "waveforms_57dB/"
+waveformDir = "/Users/brotter/benCode/impulseResponse/integratedTF/waveforms_57dB/"
 
 roofDir = "Rooftop_Seevey_Antenna/Antenna_Impulse_Testing/"
 currLocalRoofDir = localDir + roofDir + "Attempt_2_02July2012/Hpol/"
@@ -94,7 +94,7 @@ def findPalestineAntennaFile(chan, inOrOut):
 
     print chan + " maps to antenna number " + str(antennaNumber)
         
-    dir = localDir + "SeaveyAntennas/S21s/"
+    dir = localDir + "palestine14/SeaveyAntennas/S21s/"
 #    dir = "/Volumes/ANITA3Data/palestine14/SeaveyAntennas/S21s/"
         
     fileName = dir + chan[-1].lower() + "pol_ezLinks/rxp" + str(antennaNumber).zfill(2)
@@ -232,7 +232,20 @@ def importScope(chan):
     return dataX,dataY,dataF,dataFFT
 
 
-def getCables(fileName,dF=5000./512.,length=513):
+def getRegeneratedCables(fileName,dF=5000./512.,length=513):
+
+
+    cableFreq,cableFFT = getCables(fileName)
+
+    cableNewFreq = np.arange(0,length)*dF
+
+    cableNewFFT = tf.regenerateCable(cableFreq,cableFFT,dF=dF,length=length)
+    
+
+    return cableNewFreq,cableNewFFT
+
+
+def getCables(fileName):
     """
     New getCables():
 
@@ -242,19 +255,22 @@ def getCables(fileName,dF=5000./512.,length=513):
     phase -> just a constant group delay (and I don't care about absolute phase)
     gain -> interpolated inside the range you can, zero outside? (sure why not)
 
+    some of this was moved to getRegeneratedCables
+
     Lets skip causality for now (that seems to be a bigger problem at the end anyway)
 
     """
 
     cableFreq,cableGainLin,cablePhase = s2pParser(cablesBaseDir + fileName)
+    cableFFT = tf.gainAndPhaseToComplex(cableGainLin,cablePhase)
 
-    cableNewFreq = np.arange(0,length)*dF
-    cableNewPhase = tf.regenerateCablePhase(cablePhase)
-    cableNewGainLin = tf.regenerateCableLinMag(cableFreq,cableGainLin)
 
-    cableFFT = tf.gainAndPhaseToComplex(cableNewGainLin,cableNewPhase)
 
-    return cableNewFreq,cableFFT
+    return cableFreq,cableFFT
+
+
+
+
 
 
 def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
@@ -534,7 +550,7 @@ P2SFFT = False
 P2AF = False
 P2AFFT = False
 
-def doSigChainWithCables(chan,savePlots=False):
+def doSigChainWithCables(chan,savePlots=False,showPlots=False):
     #phase shifts are likely pointless!
     #they were: scopeFFT=1.26
     #           phaseShift=1.698
@@ -544,7 +560,7 @@ def doSigChainWithCables(chan,savePlots=False):
     scopeX,scopeY = processWaveform(scopeRawX,scopeRawY,"calScope")
     scopeF,scopeFFT = tf.genFFT(scopeX,scopeY)
 
-    if savePlots:
+    if savePlots or showPlots:
         fig,ax = lab.subplots(2,figsize=(11,8.5))
         ax[0].set_title("Raw Signal Chain Calibration Pulser")
         ax[0].plot(scopeRawX,scopeRawY,label="raw scope pulse")
@@ -554,40 +570,76 @@ def doSigChainWithCables(chan,savePlots=False):
         ax[0].legend()
         ax[1].plot(scopeRawF,tf.calcLogMag(scopeRawF,scopeRawFFT),label="raw scope pulse")
         ax[1].plot(scopeF,tf.calcLogMag(scopeF,scopeFFT),label="processed scope pulse")
-        ax[1].set_xlabel("Frequency (GHz)")
+        ax[1].set_xlabel("Frequency (MHz)")
         ax[1].set_ylabel("Spectral Power (dBm/Hz)")
         ax[1].legend()
-        fig.savefig("plots/doSigChainWithCables_A.png")
-        
+        if savePlots:
+            fig.savefig("plots/doSigChainWithCables_Input.png")
+        if showPlots:
+            fig.show()
+            
     #1.26 is the max coherance phase?
 #    scopeFFT = tf.fftPhaseShift(scopeFFT,1.26)
 
-    #Get the cable's (H(f) transfer function for pulser to scope)
-    #The 17 (for the "center") is from tf.compPhaseShifts3(), which makes a nice film of where the 
-    # phase center is
+    #Get the cable's H(f) transfer function for PULSER TO SCOPE
     global P2SF
     global P2SFFT
     if type(P2SF) != np.ndarray:
         print "Getting Pulser to Scope Cables..."
 #        P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
-        P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p")
+        P2SF,P2SFFT= getRegeneratedCables("A-B_PULSER-SCOPE.s2p")
+    P2SX,P2SY = tf.genTimeSeries(P2SF,P2SFFT)
 
-    #deconvolve cable pulse * cable = scope -> pulse = scope/cable
-    #finds just the pulser impulse
-    pulseDeconvFFT = scopeFFT/P2SFFT
-    #Get the cable's (H(f) transfer function for pulser to AMPA)
-    # again, the 973 is from tf.compPhaseShifts3()
 
+    #Get the cable's H(f) transfer function for PULSER TO AMPA
     global P2AF
     global P2AFFT
     if type(P2AF) != np.ndarray:
         print "Getting Pulser to Ampa Cables..."
 #        P2AF,P2AFFT= getCables("A-C_PULSER-TEST_66DB.s2p",tZero=True,hanning=True,resample="fftFit")
-        P2AF,P2AFFT= getCables("A-B_PULSER-TEST_0DB.s2p")
+        P2AF,P2AFFT= getRegeneratedCables("A-B_PULSER-TEST_0DB.s2p")
+    P2AX,P2AY = tf.genTimeSeries(P2AF,P2AFFT)
 
+
+    #PULSER TO SCOPE
+    #deconvolve cable pulse * cable = scope -> pulse = scope/cable
+    #finds just the pulser impulse
+    pulseDeconvFFT = scopeFFT/P2SFFT
+
+    #PULSER TO AMPA
     #convolve it with that transfer function to get pulse at AMPA
     ampaInputFFT = P2AFFT*pulseDeconvFFT
+    ampaInputX,ampaInputY = tf.genTimeSeries(scopeF,ampaInputFFT)
 
+
+    if showPlots or savePlots:
+        fig2,ax2 = lab.subplots(3)
+        ax2[0].set_title("Cables")
+        ax2[0].set_ylabel("phase (radians)")
+        ax2[0].plot(P2AF,tf.calcPhase(P2AFFT),label="Pulser To Ampa")
+        ax2[0].plot(P2SF,tf.calcPhase(P2SFFT),label="Pulser To Scope")
+        ax2[0].legend()
+        
+        ax2[1].set_ylabel("gain (dB)")
+        ax2[1].set_xlabel("freq (GHZ)")
+        ax2[1].plot(P2AF,tf.calcLogMag(P2AF,P2AFFT),label="Pulser To Ampa")
+        ax2[1].plot(P2SF,tf.calcLogMag(P2SF,P2SFFT),label="Pulser To Scope")
+        ax2[1].legend()
+
+        ax2[2].set_xlabel("Time (ns)")
+        ax2[2].set_ylabel("Voltage (V)")
+        ax2[2].plot(ampaInputX,ampaInputY,label="Pulse into AMPA")
+        ax2[2].plot(P2AX,P2AY,label="Cable: Pulser to AMPA")
+        ax2[2].plot(P2SX,P2SY,label="Cable: Pulser to Scope")
+        ax2[2].legend()
+
+
+        if showPlots:
+            fig2.show()
+        if savePlots:
+            fig2.savefig("plots/doSigChainWithCables_Cables.png")
+                
+                
     #get the surf (extracted from ROOT data from another script)
     surfRawX,surfRawY,surfRawF,surfRawFFT = importSurf(chan)
     surfX,surfY = processWaveform(surfRawX,surfRawY,"surf")
@@ -602,13 +654,38 @@ def doSigChainWithCables(chan,savePlots=False):
     tfFFT[np.isneginf(np.real(tfFFT))] = 0
     tfFFT = np.nan_to_num(tfFFT)
 
+
+    #change it back to time domain
+    tfX,tfY = tf.genTimeSeries(surfF,tfFFT)
+
+
+
+    if showPlots or savePlots:
+        fig3,ax3 = lab.subplots(2)
+
+        ax3[0].plot(surfX,surfY,label="processed")
+        ax3[0].plot(surfRawX,surfRawY,label="raw")
+        ax3[0].set_ylabel("Voltage (V)")
+        ax3[0].legend()
+
+        ax3[1].plot(tfX,np.roll(tfY,100),label="Final Transfer Function")
+        ax3[1].set_xlabel("time (ns)")
+        ax3[1].set_ylabel("Voltage (V)")
+        ax3[1].legend()
+
+
+
+        if showPlots:
+            fig3.show()
+        if savePlots:
+            fig3.savefig("plots/doSigChainWithCables_TF.png")
+
+
+
     #zero out everything above 1.3GHz because that's our nyquist limit
 #    for i in range(0,len(surfF)):
 #        if surfF[i] > 1.3:
 #            tfFFT[i] /= 1e6
-
-    #change it back to time domain
-    tfY = tf.fftw.irfft(tfFFT)
     
     #clean up the tail and make it start at the beginning
 #    tfY = np.roll(tfY,30-np.argmax(tfY))
@@ -689,10 +766,10 @@ def doPalAnt(chan):
     antTFY = tf.hanningTail(antTFY,370,30)
     antTFFFT = tf.fftw.rfft(antTFY)
 
-    return antTFX,antTFY#,antTFF,antTFFFT
+    return antTFX,antTFY,antTFF,antTFFFT
 
 
-def doSigChainAndAntenna(chan):
+def doSigChainAndAntenna(chan,plot=True):
     #get antenna
 #    antX,antY,antF,antFFT = doRoofAntWithCables()
     antX,antY,antF,antFFT = doPalAnt(chan)
@@ -704,6 +781,18 @@ def doSigChainAndAntenna(chan):
     a3F = sigChainF
     a3FFT = sigChainFFT * antFFT
 
+    a3X,a3Y = tf.genTimeSeries(a3F,a3FFT)
+    
+
+    if (plot):
+        fig,ax = lab.subplots(3)
+        
+        ax[0].plot(antX,antY)
+        ax[1].plot(sigChainX,sigChainY)
+        ax[2].plot(a3X,a3Y)
+        fig.show()
+
+
     #clean it up a bit
     #something was adding a ton of 1.25GHz noise
 #    for i in range(0,len(a3FFT)):
@@ -711,8 +800,6 @@ def doSigChainAndAntenna(chan):
 #            a3FFT[i] /= 1e4
 
 #    a3FFT = np.concatenate((a3FFT[:171],np.zeros(342))) #this isn't causal...
-    a3X = antX
-    a3Y = tf.fftw.irfft(a3FFT)
 
     #make it look nice and cut off the junk at the end
 #    a3Y = np.roll(a3Y,40-np.argmax(a3Y))
@@ -750,7 +837,7 @@ def computeTF(inF,inFFT,outF,outFFT):
       probably by the mean of the group delay!
     """
 
-    tfGrpDlyMean = np.mean(tf.calcGroupDelay(tfF,tfFFT))
+    tfGrpDlyMean = np.mean(tf.calcGroupDelay(tfFFT,inputF=tfF))
     dT = tfX[1]-tfX[0]
     print "tfGrpDlyMeanPt=" + str(tfGrpDlyMean)
 
@@ -919,7 +1006,7 @@ def saveAllNicePlots(allChans):
         ax[1].plot(a3F,tf.calcLogMag(a3F,a3FFT),label="ANITA3",color="red")
         ax[1].plot(a1F,tf.calcLogMag(a1F,a1FFT)-65,label="ANITA1",color="green") #line em up with nudge
         ax[1].legend()
-        ax[1].set_xlabel("frequency (GHz)")
+        ax[1].set_xlabel("frequency (MHz)")
         ax[1].set_ylabel("gain (dB)")
         ax[1].set_xlim([0,2])
         ax[1].set_ylim([-10,60])
