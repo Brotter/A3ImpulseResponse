@@ -472,7 +472,14 @@ def calcGroupDelay(inputFFT,inputF=-1,dF=-1):
     if dF == -1:
         dF = 0.1 #sure why not
 
-    GrpDly = np.abs(np.diff(phase)/(2*np.pi*dF))
+    GrpDly = calcGroupDelayFromPhase(phase,dF=dF)
+
+    return GrpDly
+
+
+def calcGroupDelayFromPhase(phase,dF=1):
+
+    GrpDly = -np.diff(phase)/2*np.pi*dF
 
     return GrpDly
 
@@ -1143,17 +1150,32 @@ def compPhaseShifts2(cableName="A-C_PULSER-TEST_66DB.s2p"):
     return
 
 
+def phaseShiftMovie(save=False):
+    wave = np.loadtxt("autoPlots/15TV.txt")
+    waveY = np.roll(wave.T[1],80)
+
+    compPhaseShifts3(waveY,len(waveY),save=save)
+
+
+
 def compPhaseShifts3(y=[],center=[],save=False):
 
+    #set up defaults
     if y == []:
         y = np.zeros(1024)
         y[50] = 1
         center = 50
-
     if center == []:
         center = len(y)/2
 
+
+
+    #get the fourier domain
     fft = fftw.rfft(y)
+
+    #From Peter:  For group delay you should choose the mean centroid of the pulses as the reference time, then the delay skew will be minimized. The phase plot will be redundant once you get the group delay tuned correctly (eg. dphi/domega is more useful than phi(omega))
+    # so I need to 
+    
 
     maxes  = []
     mins   = []
@@ -1162,7 +1184,7 @@ def compPhaseShifts3(y=[],center=[],save=False):
     causalityRatio = []
     shifts = np.arange(-2*np.pi,2*np.pi,0.1)
 #    shifts = np.arange(-np.pi/4.,np.pi/4.,0.01)
-    fig,ax = lab.subplots(3,1,figsize=(15,7))
+    fig,ax = lab.subplots(3,1,figsize=(15,9))
     fig.show()
     for i in range(0,len(shifts)):
         shiftedFFT = fftPhaseShift(fft,shifts[i])
@@ -1171,22 +1193,30 @@ def compPhaseShifts3(y=[],center=[],save=False):
         #time domain pulse
         ax[0].cla()
         ax[0].set_title("time domain");
+        ax[0].plot(y,lw=0.2,color="black")
         ax[0].plot(shifted,lw = 3)
         ax[0].plot(range(0,center),shifted[:center],'.',color="red")
         ax[0].plot(range(center,len(shifted)),shifted[center:],'.',color="blue")
-#        ax[0].set_xlim([0,200])
-        ax[0].set_ylim([-0.5,0.5])
+        ax[0].set_xlim([0,300])
+        ax[0].set_ylim([-0.6,0.6])
+        ax[0].set_xlabel("Time (ns)")
 
         #phase
         ax[1].cla()
-        ax[1].set_title("Phase")
-        ax[1].plot(np.angle(shiftedFFT[1:-1]))
-        ax[1].set_ylim([-np.pi,np.pi])
+#        ax[1].set_title("Phase vs Group Delay")
+        
+        ax[1].plot(np.unwrap(np.angle(shiftedFFT[1:])),calcGroupDelay(shiftedFFT),"+")
+        ax[1].set_xlim([-225,25])
+        ax[1].set_xlabel("Unwrapped Phase (radians)")
+        ax[1].set_ylabel("Group Delay (ns)")
 
         #group delay
         ax[2].cla()
-        ax[2].set_title("Group Delay")
-        ax[2].plot(calcGroupDelay(shiftedFFT))
+#        ax[2].set_title("Wrapped Phase")
+        ax[2].plot(np.angle(shiftedFFT[1:]))
+        ax[2].set_ylabel("Phase (radians)")
+        ax[2].set_xlabel("Frequency (arbitrary)")
+        
 
 #        ax[1][0].plot(10.*np.log10((np.abs(shiftedFFT[1:-1])**2)))
 
@@ -1254,3 +1284,51 @@ def compPhaseShifts4(y):
     fig.show()
 
     return
+
+
+
+def minimizeGroupDelay():
+
+    wave = np.loadtxt("autoPlots/15TV.txt")
+
+    waveX = wave.T[0]
+    waveY = wave.T[1]
+
+    f,fft = genFFT(waveX,waveY)
+
+    phase = calcPhase(fft)
+    gdOrig = calcGroupDelay(fft)
+    
+    dF = (f[1]-f[0])*1000
+    print "dF: ",dF
+
+    phaseFit = mf.fitLin(f[20:124],phase[20:124],[0,0,0])
+    phaseCorr = mf.lambdaLin(phaseFit[0],f)
+
+    figs,axes = lab.subplots(2)
+
+    axes[0].set_ylabel("cumulative phase (radians)")
+    axes[0].set_xlabel("Frequency (GHz)")
+    axes[0].plot(f,phase,'.',label="measured phase")
+    axes[0].plot(f,phaseCorr,label="linear fit")
+    axes[0].legend(loc="lower right")
+
+    phaseNew = phase - phaseCorr
+    gdNew  = calcGroupDelayFromPhase(phaseNew)
+
+
+    axes[1].set_xlabel("Frequency (GHz)")
+    axes[1].set_ylabel("Group Dleay (ns)")
+    axes[1].plot(f[1:],gdNew,label="corrected group delay")
+    twinAx = axes[1].twinx()
+    twinAx.set_ylabel("Gain (dB)")
+    twinAx.plot(f,10*np.log(np.absolute(fft)),label="gain",color="red")
+    axes[1].legend(loc="lower left")
+    twinAx.legend()
+
+
+    figs.show()
+
+    return
+                         
+
