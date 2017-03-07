@@ -84,7 +84,8 @@ def main():
             print "Phi="+str(offPhi)+" Theta="+str(offTheta)
             
             label = str(offPhi)+","+str(offTheta)
-            axes[-1].plot(grpDly[0][1:],grpDly[1][1:],label=label,color=colors[chan])
+            axes[-1].plot(grpDly[0], grpDly[1], label = label, color = colors[chan])
+#            axes[-1].plot(grpDly[0][1:],grpDly[1][1:],label=label,color=colors[chan])
         index += 1
         
     for ax in axes:
@@ -128,7 +129,8 @@ def ANITA2_HchamberAnglePlot():
             
             label = str(offPhi)+","+str(offTheta)
 #            axes[-1].plot(grpDly[0][1:],grpDly[1][1:],label=label,color=colors[chan])
-            axes[-1].plot(logMag[0][1:200],logMag[1][1:200],label=label,color=colors[chan])
+            axes[-1].plot(logMag[0][:200],logMag[1][:200],label=label,color=colors[chan])
+#            axes[-1].plot(logMag[0][1:200],logMag[1][1:200],label=label,color=colors[chan])
         index += 1
         
     for ax in axes:
