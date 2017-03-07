@@ -87,7 +87,9 @@ def calcLogMag(graphF,graphFFT):
     """
 
     dF = (graphF[1]-graphF[0]) * 1e9  # Resolution bandwidth (RBW), converted from GHz to Hz.
-    return 10. * np.log10(np.abs(graphFFT)**2 / 5e-2 / dF)
+    dBmPerHz = 10 * np.log10(np.abs(graphFFT)**2 / 5e-2 / dF)
+    dBmPerHz = np.nan_to_num(dBmPerHz)
+    return dBmPerHz
     #unfold spectrum (This is done for you in fftw.rfft()):
     #1) discard negative frequencies (second half)
     #2) double all positive frequencies (but not DC (bin 0) and nyquist (bin length/2+1)
@@ -102,7 +104,6 @@ def calcLogMag(graphF,graphFFT):
 #    dBm = 10.*np.log10(power)
 
 #    return dBm
-    
 
 
 def calcLinMagFromFFT(fft):
@@ -318,6 +319,7 @@ def unwrapPhase(phase):
 
     return phase
 
+
 def fftPhaseShift(fft,shift,gdShift=0):
     gainLin,phase = complexToGainAndPhase(fft)
     phase = phase+shift+np.arange(len(fft))*gdShift
@@ -348,14 +350,15 @@ def accumulatePhase(phase):
     """
 
     phaseOut = copy.deepcopy(phase)
+    phaseOut = np.unwrap(phaseOut)
 
-    for pt in range(1,len(phase)):
-        if ( (phase[pt-1] - phase[pt]) > np.pi ):
-            for pt2 in range(pt,len(phase)):
-                phaseOut[pt2] += np.pi*2
-        elif ( (phase[pt] - phase[pt-1]) > np.pi ):
-            for pt2 in range(pt,len(phase)):
-                phaseOut[pt2] -= np.pi*2
+#    for pt in range(1,len(phase)):
+#        if ( (phase[pt-1] - phase[pt]) > np.pi ):
+#            for pt2 in range(pt,len(phase)):
+#                phaseOut[pt2] += np.pi*2
+#        elif ( (phase[pt] - phase[pt-1]) > np.pi ):
+#            for pt2 in range(pt,len(phase)):
+#                phaseOut[pt2] -= np.pi*2
 
     return phaseOut
 
@@ -371,7 +374,8 @@ def regenerateCable(f,fft,dF=5000./512,length=513):
 
     return fftNew
 
-def regenerateCablePhase(f,phase,dF=5000./512.,length=513):
+
+def regenerateCablePhase(f, phase, dF = 5000. / 512., length = 513):
     """
     A cable has a very flat group delay (Tg(w)), so we should, instead of trying to resample it,
     just regenerate the phase entirely of a cable using the measured phase
@@ -386,12 +390,12 @@ def regenerateCablePhase(f,phase,dF=5000./512.,length=513):
     #    groupDelayMean = np.mean(groupDelay[:len(groupDelay)/2])
     
     #or do a fit!
-    phaseNew = minimizeGroupDelayFromPhase(f,phase)
+    phaseNew = minimizeGroupDelayFromPhase(f, phase)
 
     #now do a spline on that I guess
-    phaseOutInterp = Akima1DInterpolator(f*1000.,phaseNew)
+    phaseOutInterp = Akima1DInterpolator(f * 1000., phaseNew)
 
-    outF = np.arange(length)*dF
+    outF = np.arange(length) * dF
     phaseOut = phaseOutInterp(outF)
 
     #out of range it should be zero I guess
@@ -400,7 +404,7 @@ def regenerateCablePhase(f,phase,dF=5000./512.,length=513):
     return phaseOut
 
 
-def regenerateCableLinMag(f,linMag,dF=5000./512.,length=513):
+def regenerateCableLinMag(f, linMag ,dF = 5000. / 512., length = 513):
     """
     Just like the phase, I need to be able to regenerate the cable linear magnitude.
 
@@ -491,7 +495,7 @@ def sqrtOfFFT1(fft):
     return np.array(out)
 
 
-def calcGroupDelay(inputFFT,inputF=[],dF=-1):
+def calcGroupDelay(inputFFT, inputF = [], dF = -1):
 
     phase = calcPhase(inputFFT)
     
@@ -508,9 +512,10 @@ def calcGroupDelay(inputFFT,inputF=[],dF=-1):
     return GrpDly
 
 
-def calcGroupDelayFromPhase(phase,dF=1):
+def calcGroupDelayFromPhase(phase, dF = 1):
 
-    GrpDly = -np.diff(phase) / (2 * np.pi * dF)
+    GrpDly = - np.gradient(phase) / (2 * np.pi * dF)
+#    GrpDly = -np.diff(phase) / (2 * np.pi * dF)
 
     return GrpDly
 
@@ -551,6 +556,8 @@ def highPass(inputWaveX,inputWaveY,hpFilter=0.150):
     b,a = signal.butter(5,hpFilter,'highpass')
 
     filtered = signal.lfilter(b,a,inputWaveY,axis=0)
+    
+    return filtered
 
 
 def lowPass(inputWaveX,inputWaveY,lpFilter=1.50):
@@ -959,10 +966,12 @@ def fitAndRegenFFT(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1):
     ax.plot(freqSeries,newMag)
     fig.show()
 
-    newReal = np.sqrt(newMag)
-    newReal[::2] *= -1
+    newReal = -np.sqrt(newMag)
     newImag = np.sqrt(newMag)
-    newReal[1::2] *= -1
+#    newReal = np.sqrt(newMag)
+#    newReal[::2] *= -1
+#    newImag = np.sqrt(newMag)
+#    newReal[1::2] *= -1
 
     return freqSeries,newReal+newImag*1j
 
@@ -1233,7 +1242,8 @@ def compPhaseShifts3(y=[],center=[],save=False):
         ax[1].cla()
 #        ax[1].set_title("Phase vs Group Delay")
         
-        ax[1].plot(np.unwrap(np.angle(shiftedFFT[1:])),calcGroupDelay(shiftedFFT),"+")
+        ax[1].plot(np.unwrap(np.angle(shiftedFFT)),calcGroupDelay(shiftedFFT),"+")
+#        ax[1].plot(np.unwrap(np.angle(shiftedFFT[1:])),calcGroupDelay(shiftedFFT),"+")
         ax[1].set_xlim([-225,25])
         ax[1].set_xlabel("Unwrapped Phase (radians)")
         ax[1].set_ylabel("Group Delay (ns)")
@@ -1241,7 +1251,8 @@ def compPhaseShifts3(y=[],center=[],save=False):
         #group delay
         ax[2].cla()
 #        ax[2].set_title("Wrapped Phase")
-        ax[2].plot(np.angle(shiftedFFT[1:]))
+        ax[2].plot(np.angle(shiftedFFT))
+#        ax[2].plot(np.angle(shiftedFFT[1:]))
         ax[2].set_ylabel("Phase (radians)")
         ax[2].set_xlabel("Frequency (arbitrary)")
 
@@ -1341,7 +1352,6 @@ def minimizeGroupDelayFromPhase(f,phase):
 
 def plotMinimizedGroupDelay(f,fft):
 
-
     gain = np.absolute(fft)
     phase = calcPhase(fft)
     gdOrig = calcGroupDelay(fft)
@@ -1364,13 +1374,13 @@ def plotMinimizedGroupDelay(f,fft):
 
     axes[1].set_xlabel("Frequency (GHz)")
     axes[1].set_ylabel("Group Dleay (ns)")
-    axes[1].plot(f[1:],gdNew,label="corrected group delay")
+    axes[1].plot(f,gdNew,label="corrected group delay")
+#    axes[1].plot(f[1:],gdNew,label="corrected group delay")
     twinAx = axes[1].twinx()
     twinAx.set_ylabel("Gain (dB)")
     twinAx.plot(f,10*np.log(np.absolute(fft)),label="gain",color="red")
     axes[1].legend(loc="lower left")
     twinAx.legend()
-
 
     fftNew = gainAndPhaseToComplex(gain,phaseNew)
     waveYNew = fftw.irfft(fftNew)
@@ -1392,3 +1402,5 @@ def exampleMinimizePlot():
     waveY = wave.T[1]
 
     f,fft = genFFT(waveX,waveY)
+    
+    return

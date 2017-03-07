@@ -1023,8 +1023,10 @@ def saveAllNicePlots(allChans):
 #        ax[1].set_autoscale_on(False)
     
         ax[2].cla()
-        ax[2].plot(a3F[1:],tf.calcGroupDelay(a3FFT),label="ANITA3",color="red")
-        ax[2].plot(a1F[1:],tf.calcGroupDelay(a1FFT),label="ANITA1",color="green")
+        ax[2].plot(a3F,tf.calcGroupDelay(a3FFT),label="ANITA3",color="red")
+        ax[2].plot(a1F,tf.calcGroupDelay(a1FFT),label="ANITA1",color="green")
+#        ax[2].plot(a3F[1:],tf.calcGroupDelay(a3FFT),label="ANITA3",color="red")
+#        ax[2].plot(a1F[1:],tf.calcGroupDelay(a1FFT),label="ANITA1",color="green")
         ax[2].set_xlabel("Frequency (GHz)")
         ax[2].set_ylabel("Group Delay (ns)")
         ax[2].set_xlim([0,1.5])
