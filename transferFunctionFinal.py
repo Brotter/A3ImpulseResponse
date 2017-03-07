@@ -683,13 +683,13 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
 
 
     #zero out everything above 1.3GHz because that's our nyquist limit
-#    for i in range(0,len(surfF)):
-#        if surfF[i] > 1.3:
-#            tfFFT[i] /= 1e6
+    for i in range(0,len(surfF)):
+        if surfF[i] > 1.3:
+            tfFFT[i] /= 1e9
     
     #clean up the tail and make it start at the beginning
-#    tfY = np.roll(tfY,30-np.argmax(tfY))
-#    tfY = tf.hanningTail(tfY,200,100)
+    tfY = np.roll(tfY,30-np.argmax(tfY))
+    tfY = tf.hanningTail(tfY,200,100)
     
     return surfX,tfY,surfF,tfFFT 
 
@@ -769,13 +769,13 @@ def doPalAnt(chan):
     return antTFX,antTFY,antTFF,antTFFFT
 
 
-def doSigChainAndAntenna(chan,showPlots=False):
+def doSigChainAndAntenna(chan,showPlots=False,savePlots=False):
     #get antenna
 #    antX,antY,antF,antFFT = doRoofAntWithCables()
     antX,antY,antF,antFFT = doPalAnt(chan)
     
     #get sig chain
-    sigChainX,sigChainY,sigChainF,sigChainFFT = doSigChainWithCables(chan)
+    sigChainX,sigChainY,sigChainF,sigChainFFT = doSigChainWithCables(chan,showPlots=showPlots,savePlots=savePlots)
 
     #convolve the two (full ANITA3 transfer function!)
     a3F = sigChainF
@@ -805,8 +805,8 @@ def doSigChainAndAntenna(chan,showPlots=False):
 #    a3FFT = np.concatenate((a3FFT[:171],np.zeros(342))) #this isn't causal...
 
     #make it look nice and cut off the junk at the end
-#    a3Y = np.roll(a3Y,40-np.argmax(a3Y))
-#    a3Y = tf.hanningTail(a3Y,300,200)
+    a3Y = np.roll(a3Y,40-np.argmax(a3Y))
+    a3Y = tf.hanningTail(a3Y,300,200)
 #    a3X,a3Y = tf.zeroPadEqual(a3X,a3Y,1024)
     
     return a3X,a3Y
@@ -874,7 +874,7 @@ def doTheWholeShebang():
     lab.close("all")
     for chan in chans:
         try:
-            allChans[chan] = doSigChainAndAntenna(chan,showPlots=True)
+            allChans[chan] = doSigChainAndAntenna(chan,showPlots=True,savePlots=True)
         except:
             print chan+" FAILED"
     
@@ -964,7 +964,7 @@ def saveAllNicePlots(allChans):
     """
 
     lab.rcParams['figure.figsize'] = [16.0,11.0]
-    fig,ax = lab.subplots(2)
+    fig,ax = lab.subplots(3)
 
     #get the ANITA1 transfer function
     a1X,a1Y = importANITA1()
@@ -973,6 +973,8 @@ def saveAllNicePlots(allChans):
     a1F,a1FFT = tf.genFFT(a1X,a1Y)
 
     for chan in allChans:
+        print chan
+
         a3X = allChans[chan][0]
         a3Y = allChans[chan][1]
 
@@ -1008,14 +1010,21 @@ def saveAllNicePlots(allChans):
         
         ax[1].cla()
         ax[1].plot(a3F,tf.calcLogMag(a3F,a3FFT),label="ANITA3",color="red")
-        ax[1].plot(a1F,tf.calcLogMag(a1F,a1FFT)-65,label="ANITA1",color="green") #line em up with nudge
+        ax[1].plot(a1F,tf.calcLogMag(a1F,a1FFT)-50,label="ANITA1",color="green") #line em up with nudge
         ax[1].legend()
-        ax[1].set_xlabel("frequency (MHz)")
+        ax[1].set_xlabel("frequency (GHz)")
         ax[1].set_ylabel("gain (dB)")
-        ax[1].set_xlim([0,2])
-        ax[1].set_ylim([-10,60])
-        ax[1].set_autoscale_on(False)
+        ax[1].set_xlim([0,1.5])
+        ax[1].set_ylim([-100,0])
+#        ax[1].set_autoscale_on(False)
     
+        ax[2].cla()
+        ax[2].plot(a3F[1:],tf.calcGroupDelay(a3FFT),label="ANITA3",color="red")
+        ax[2].plot(a1F[1:],tf.calcGroupDelay(a1FFT),label="ANITA1",color="green")
+        ax[2].set_xlabel("Frequency (GHz)")
+        ax[2].set_ylabel("Group Delay (ns)")
+        ax[2].set_xlim([0,1.5])
+
         fig.savefig("autoPlots/"+chan+".png")
 
 
@@ -1369,3 +1378,5 @@ def makeWaveform(length=513,dF=5./512):
     return fArray,fft
 
     return outX,outY
+
+
