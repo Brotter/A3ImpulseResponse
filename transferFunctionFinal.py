@@ -50,16 +50,16 @@ except:
 A3Dir = "./"
 
 # Directories with antenna pulse data.
-#localDir = "../calibrationLinks/"
-localDir = "/Volumes/ANITA3Data/"
+localDir = "../calibrationLinks/"
+#localDir = "/Volumes/ANITA3Data/"
 
 # Where the cable info is stored.
-#cablesBaseDir = localDir + "S21ExternalRFChainForSingleChannelCallibration/"
-cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
+cablesBaseDir = localDir + "S21ExternalRFChainForSingleChannelCallibration/"
+#cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
 
 # Signal chain data (57dB seems to be a happy middle power).
-#waveformDir = localDir + "waveforms_57dB/"
-waveformDir = "/Users/brotter/benCode/impulseResponse/integratedTF/waveforms_57dB/"
+waveformDir = localDir + "waveforms_57dB/"
+#waveformDir = "/Users/brotter/benCode/impulseResponse/integratedTF/waveforms_57dB/"
 
 roofDir = "Rooftop_Seevey_Antenna/Antenna_Impulse_Testing/"
 currLocalRoofDir = localDir + roofDir + "Attempt_2_02July2012/Hpol/"
@@ -123,7 +123,7 @@ def importPalAntIn(chan):
     #also I always want to have the fourier spaces of these things
     dataF, dataFFT = tf.genFFT(dataX,dataY)
 
-    return dataX,dataY,dataF,dataFFT
+    return dataX, dataY, dataF, dataFFT
 
 
 def importPalAntOut(chan):
@@ -229,11 +229,10 @@ def importScope(chan):
     #also I always want to have the fourier spaces of these things
     dataF,dataFFT = tf.genFFT(dataX,dataY)
         
-    return dataX,dataY,dataF,dataFFT
+    return dataX, dataY, dataF, dataFFT
 
 
 def getRegeneratedCables(fileName,dF=5000./512.,length=513):
-
 
     cableFreq,cableFFT = getCables(fileName)
 
@@ -241,8 +240,7 @@ def getRegeneratedCables(fileName,dF=5000./512.,length=513):
 
     cableNewFFT = tf.regenerateCable(cableFreq,cableFFT,dF=dF,length=length)
     
-
-    return cableNewFreq,cableNewFFT
+    return cableNewFreq, cableNewFFT
 
 
 def getCables(fileName):
@@ -264,18 +262,11 @@ def getCables(fileName):
     cableFreq,cableGainLin,cablePhase = s2pParser(cablesBaseDir + fileName)
     cableFFT = tf.gainAndPhaseToComplex(cableGainLin,cablePhase)
 
-
-
     return cableFreq,cableFFT
-
-
-
-
 
 
 def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
     """
-
     I'm going to depreciate this because it doesn't really work: use getCables() instead
 
     A wrapper for getting the network analyzer data for the cables
@@ -291,7 +282,6 @@ def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
     if fftZeroPad it will do an akima spline in the frequency domain and zero pad everything outside the range
     if fftFit it will fit a poly4 to the magnitude and attempt to regenerate the signal like that
           it also zero pads outside the range
- 
     """
 
     cableFreq,cableGainLin,cablePhase = s2pParser(cablesBaseDir + fileName)
@@ -471,7 +461,7 @@ def processWaveform(graphT,graphV,source):
         kHanningWindow = True
         kPostZeroMean  = True
 
-    print "---->Starting processWaveform() on "+source
+    print "---->Starting processWaveform() on " + source
 
     #print out what you got in initially
     print "Initial: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
@@ -514,9 +504,9 @@ def processWaveform(graphT,graphV,source):
     #find max and do hanning window with SUPER SHARP EDGES(cuts waveform to desired length too)
     if kSlice:
         #I have to zero pad out so I can select the center of the window
-        graphT,graphV = tf.zeroPadEqual(graphT,graphV,1024*3)
+        graphT,graphV = tf.zeroPadEqual(graphT, graphV, 1024 * 3)
         graphMaxV = np.argmax(graphV)
-        graphT,graphV = tf.hanningWindow(graphT,graphV,graphMaxV+240,512,slope=1)
+        graphT,graphV = tf.hanningWindow(graphT, graphV, graphMaxV + 240, 512, slope = 1)
         print "Slice: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
 
     #zero pad back to 1024 because I'm making my hanning window smaller (~50ns wide)
@@ -590,7 +580,6 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
         P2SF,P2SFFT= getRegeneratedCables("A-B_PULSER-SCOPE.s2p")
     P2SX,P2SY = tf.genTimeSeries(P2SF,P2SFFT)
 
-
     #Get the cable's H(f) transfer function for PULSER TO AMPA
     global P2AF
     global P2AFFT
@@ -599,7 +588,6 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
 #        P2AF,P2AFFT= getCables("A-C_PULSER-TEST_66DB.s2p",tZero=True,hanning=True,resample="fftFit")
         P2AF,P2AFFT= getRegeneratedCables("A-B_PULSER-TEST_0DB.s2p")
     P2AX,P2AY = tf.genTimeSeries(P2AF,P2AFFT)
-
 
     #PULSER TO SCOPE
     #deconvolve cable pulse * cable = scope -> pulse = scope/cable
@@ -610,7 +598,6 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
     #convolve it with that transfer function to get pulse at AMPA
     ampaInputFFT = P2AFFT*pulseDeconvFFT
     ampaInputX,ampaInputY = tf.genTimeSeries(scopeF,ampaInputFFT)
-
 
     if showPlots or savePlots:
         fig2,ax2 = lab.subplots(3)
@@ -633,13 +620,11 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
         ax2[2].plot(P2SX,P2SY,label="Cable: Pulser to Scope")
         ax2[2].legend()
 
-
         if showPlots:
             fig2.show()
         if savePlots:
             fig2.savefig("plots/doSigChainWithCables_Cables.png")
-                
-                
+            
     #get the surf (extracted from ROOT data from another script)
     surfRawX,surfRawY,surfRawF,surfRawFFT = importSurf(chan)
     surfX,surfY = processWaveform(surfRawX,surfRawY,"surf")
@@ -654,11 +639,8 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
     tfFFT[np.isneginf(np.real(tfFFT))] = 0
     tfFFT = np.nan_to_num(tfFFT)
 
-
     #change it back to time domain
     tfX,tfY = tf.genTimeSeries(surfF,tfFFT)
-
-
 
     if showPlots or savePlots:
         fig3,ax3 = lab.subplots(2)
@@ -677,14 +659,10 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
         ax3[1].set_ylim([-100,-50])
         ax3[1].legend()
 
-
-
         if showPlots:
             fig3.show()
         if savePlots:
             fig3.savefig("plots/doSigChainWithCables_TF.png")
-
-
 
     #zero out everything above 1.3GHz because that's our nyquist limit
     for i in range(0,len(surfF)):
@@ -787,7 +765,6 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False):
 
     a3X,a3Y = tf.genTimeSeries(a3F,a3FFT)
     
-
     if (showPlots):
         lab.close("all")
         fig,ax = lab.subplots(3)
@@ -798,7 +775,6 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False):
         ax[2].plot(a3X,np.roll(a3Y,100),label="Convolution",color="black")
         ax[2].legend()
         fig.show()
-
 
     #clean it up a bit
     #something was adding a ton of 1.25GHz noise
@@ -1210,7 +1186,7 @@ def fourierZeroPadding():
 
     fig.show()
 
-    return f,fft,f2,fft2
+    return f, fft, f2, fft2
 
 
 def fourierCausalPadding():
@@ -1236,7 +1212,7 @@ def fourierCausalPadding():
 
     fig.show()
 
-    return f,fft,f2,fft2
+    return f, fft, f2, fft2
 
     
 def calibrationPulseSignal(chan):
@@ -1261,7 +1237,7 @@ def calibrationPulseSignal(chan):
     #finds just the pulser impulse
     pulseDeconvFFT = scopeFFT/P2SFFT
 
-    return P2SF,pulseDeconvFFT
+    return P2SF, pulseDeconvFFT
 
 
 def weinerDeconv(sigInX, sigInY, chan):
@@ -1376,13 +1352,7 @@ def makeWaveform(length=513,dF=5./512):
         f = fArray[i]
         Tgw += ((3/102.4)*(1-magArray[i]))/(np.pi*2.)
         phaseArray.append(phaseArray[-1]-Tgw)
+    
+    fft = tf.gainAndPhaseToComplex(magArray, phaseArray)
         
-    return fArray,magArray,phaseArray
-
-    fft = tf.gainAndPhaseToComplex(magArray,phaseArray)
-
-    return fArray,fft
-
-    return outX,outY
-
-
+    return fArray, magArray, phaseArray, fft
