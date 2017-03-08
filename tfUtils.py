@@ -85,10 +85,10 @@ def calcLogMag(graphF,graphFFT):
     
     I somehow messed this up?
     """
-
     dF = (graphF[1]-graphF[0]) * 1e9  # Resolution bandwidth (RBW), converted from GHz to Hz.
-    dBmPerHz = 10 * np.log10(np.abs(graphFFT)**2 / 5e-2 / dF)
-    dBmPerHz = np.nan_to_num(dBmPerHz)
+    dBmPerHz = 10 * np.log10(np.abs(graphFFT)**2 / (5e-2 * dF))
+#    dBmPerHz = np.nan_to_num(dBmPerHz)
+    dBmPerHz[dBmPerHz == -np.inf] = -999
     return dBmPerHz
     #unfold spectrum (This is done for you in fftw.rfft()):
     #1) discard negative frequencies (second half)
@@ -465,7 +465,7 @@ def gainAndPhaseToComplex(gainLin,phase):
     return np.array(real)+np.array(imag)*1j
 
 
-def sqrtOfFFT2(fft):
+def sqrtOfFFT2(f,fft):
     """
     This is the actual way to do it!  The phase is divided in two and the
     magnitude is rooted.  
@@ -475,8 +475,11 @@ def sqrtOfFFT2(fft):
 
     gain,phase = complexToGainAndPhase(fft)
     gain = np.sqrt(gain)
-    gphase = phase/2.
-    fftOut = gainAndPhaseToComplex(gain,phase)
+    phase = np.unwrap(phase)
+    phaseOut = phase/2.
+#    phaseOut = minimizeGroupDelayFromPhase(f,phaseOut)
+    fftOut = gainAndPhaseToComplex(gain,phaseOut)
+
 
     return fftOut
 
