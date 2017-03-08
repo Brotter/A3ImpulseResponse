@@ -94,7 +94,7 @@ def findPalestineAntennaFile(chan, inOrOut):
 
     print chan + " maps to antenna number " + str(antennaNumber)
         
-    dir = localDir + "palestine14/SeaveyAntennas/S21s/"
+    dir = localDir + "SeaveyAntennas/S21s/"
 #    dir = "/Volumes/ANITA3Data/palestine14/SeaveyAntennas/S21s/"
         
     fileName = dir + chan[-1].lower() + "pol_ezLinks/rxp" + str(antennaNumber).zfill(2)
@@ -924,8 +924,8 @@ def findSignalToNoise():
 
 def writeAll(allChans):
     """
-    Writes all the files to disk in a space seperated variable format so that I
-    can post them
+      Writes all the files to disk in a space seperated variable format so that
+      I can post them
     """
     for chan in allChans.keys():
         try:
@@ -1311,7 +1311,7 @@ def testWeiner():
 
     fig.show()
 
-    return outX,outY
+    return outX, outY
 
 
 def makeWaveform(length=513,dF=5./512):

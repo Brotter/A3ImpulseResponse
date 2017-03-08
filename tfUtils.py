@@ -87,8 +87,7 @@ def calcLogMag(graphF,graphFFT):
     """
 
     dF = (graphF[1]-graphF[0]) * 1e9  # Resolution bandwidth (RBW), converted from GHz to Hz.
-    dBmPerHz = 10 * np.log10(np.abs(graphFFT)**2 / 5e-2 / dF)
-    dBmPerHz = np.nan_to_num(dBmPerHz)
+    dBmPerHz = 10 * np.log10(np.abs(graphFFT)**2 / (5e-2 * dF))
     return dBmPerHz
     #unfold spectrum (This is done for you in fftw.rfft()):
     #1) discard negative frequencies (second half)
