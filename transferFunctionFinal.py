@@ -680,7 +680,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
         ax3[0].plot(tfX,np.roll(tfY,100),label="Signal Chain Transfer Function",color="black")
         ax3[0].set_ylabel("Voltage (V)")
         ax3[0].set_xlabel("time (ns)")
-        ax3[0].set_xlim([20,80])
+#        ax3[0].set_xlim([20,80])
         ax3[0].legend()
 
         ax3[1].set_ylabel("Power (dB)")
@@ -927,7 +927,7 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False):
 
     a3X,a3Y = tf.genTimeSeries(a3F,a3FFT)
     
-    if (showPlots):
+    if (showPlots or savePlots):
         lab.close("all")
         fig,ax = lab.subplots(3)
         ax[0].plot(antX,np.roll(antY,100),label="Antenna")
@@ -936,7 +936,11 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False):
         ax[1].legend()
         ax[2].plot(a3X,np.roll(a3Y,100),label="Convolution",color="black")
         ax[2].legend()
-        fig.show()
+
+        if showPlots:
+            fig.show()
+        if savePlots:
+            fig.savefig("plots/doSigChainAndAntenna_TF"+chan+".png")
 
     #clean it up a bit
     #something was adding a ton of 1.25GHz noise
@@ -1025,13 +1029,13 @@ def doTheWholeShebang(savePlots=False,showPlots=False):
     return allChans
 
 
-def doAllSigChains():
+def doAllSigChains(savePlots=False,showPlots=False):
     # just does all the signal chains without the antennas
     chans = np.loadtxt("chanList.txt",dtype=str)
     allChans = {}
     for chan in chans:
         try:
-            allChans[chan] = doSigChainWithCables(chan)
+            allChans[chan] = doSigChainWithCables(chan,savePlots=savePlots,showPlots=showPlots)
         except:
             print chan+" FAILED************************************************"
 
@@ -1518,7 +1522,6 @@ def makeWaveform(length=513,dF=5./512):
 
     magArray = np.ones(length)
 
-    phaseArray = (25*(np.arange(0,len(fArray))/float(len(fArray))))**2
     Tgw = -1
     for i in range(0,len(fArray)):
         f = fArray[i]
@@ -1531,10 +1534,22 @@ def makeWaveform(length=513,dF=5./512):
         else:
             magArray[i] = 0
 
+
+# some random guess as to phase structure
 #    for i in range(0,len(fArray)):
 #        f = fArray[i]
 #        Tgw += ((3/102.4)*(1-magArray[i]))/(np.pi*2.)
 #        phaseArray.append(phaseArray[-1]-Tgw)
+
+
+    #constant second order quadratic phase increase
+#    phaseArray = (25*(np.arange(0,len(fArray))/float(len(fArray))))**2
+
+            
+    phaseArray = (2*fArray)**(1-np.absolute(np.cumsum(np.gradient(magArray))))
+
+    print phaseArray
+
         
     fft = tf.gainAndPhaseToComplex(magArray,phaseArray)
 
@@ -1551,7 +1566,7 @@ def makeWaveform(length=513,dF=5./512):
     ax[1].set_ylabel("phase (unwrapped radians)",color="blue")
     ax11 = ax[1].twinx()
     ax11.set_ylabel("linear gain",color="red")
-    ax11.plot(fArray,magArray,color="red")
+    ax11.plot(fArray,magArray,'.',color="red")
     
     fig.show()
 
