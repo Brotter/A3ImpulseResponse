@@ -54,7 +54,7 @@ localDir = "../calibrationLinks/"
 #localDir = "/Volumes/ANITA3Data/"
 
 # Where the cable info is stored.
-cablesBaseDir = localDir + "S21ExternalRFChainForSingleChannelCallibration/"
+cablesBaseDir = localDir + "antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
 #cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
 
 # Signal chain data (57dB seems to be a happy middle power).
@@ -94,7 +94,7 @@ def findPalestineAntennaFile(chan, inOrOut):
 
     print chan + " maps to antenna number " + str(antennaNumber)
         
-    dir = localDir + "SeaveyAntennas/S21s/"
+    dir = localDir + "palestine14/SeaveyAntennas/S21s/"
 #    dir = "/Volumes/ANITA3Data/palestine14/SeaveyAntennas/S21s/"
         
     fileName = dir + chan[-1].lower() + "pol_ezLinks/rxp" + str(antennaNumber).zfill(2)
