@@ -1518,7 +1518,7 @@ def makeWaveform(length=513,dF=5./512):
 
     magArray = np.ones(length)
 
-    phaseArray = [0]
+    phaseArray = (25*(np.arange(0,len(fArray))/float(len(fArray))))**2
     Tgw = -1
     for i in range(0,len(fArray)):
         f = fArray[i]
@@ -1531,14 +1531,30 @@ def makeWaveform(length=513,dF=5./512):
         else:
             magArray[i] = 0
 
-    for i in range(0,len(fArray)):
-        f = fArray[i]
-        Tgw += ((3/102.4)*(1-magArray[i]))/(np.pi*2.)
-        phaseArray.append(phaseArray[-1]-Tgw)
+#    for i in range(0,len(fArray)):
+#        f = fArray[i]
+#        Tgw += ((3/102.4)*(1-magArray[i]))/(np.pi*2.)
+#        phaseArray.append(phaseArray[-1]-Tgw)
         
     fft = tf.gainAndPhaseToComplex(magArray,phaseArray)
 
     outX,outY = tf.genTimeSeries(fArray,fft)
+
+    fig,ax = lab.subplots(2)
+
+    ax[0].set_title("Making a waveform from scratch")
+    ax[0].plot(outX,np.roll(outY,300))
+    ax[0].set_xlabel("time (ns)")
+    ax[0].set_ylabel("voltage (arbitrary)")
+    ax[1].plot(fArray,phaseArray,color="blue")
+    ax[1].set_xlabel("frequency (GHz)")
+    ax[1].set_ylabel("phase (unwrapped radians)",color="blue")
+    ax11 = ax[1].twinx()
+    ax11.set_ylabel("linear gain",color="red")
+    ax11.plot(fArray,magArray,color="red")
+    
+    fig.show()
+
 
     return outX,outY
 
