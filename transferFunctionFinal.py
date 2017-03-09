@@ -569,7 +569,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
         ax[1].set_ylim([-70,-20])
         ax[1].legend()
         if savePlots:
-            fig.savefig("plots/doSigChainWithCables_Input.png")
+            fig.savefig("plots/doSigChainWithCables_Input"+chan+".png")
         if showPlots:
             fig.show()
             
@@ -632,7 +632,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
         if showPlots:
             fig2.show()
         if savePlots:
-            fig2.savefig("plots/doSigChainWithCables_Cables.png")
+            fig2.savefig("plots/doSigChainWithCables_Cables"+chan+".png")
             
     #get the surf (extracted from ROOT data from another script)
     surfRawX,surfRawY,surfRawF,surfRawFFT = importSurf(chan)
@@ -655,7 +655,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
         axS[1].set_ylim([-100,-40])
         axS[1].legend()
         if savePlots:
-            figS.savefig("plots/doSigChainWithCables_SURF.png")
+            figS.savefig("plots/doSigChainWithCables_SURF"+chan+".png")
         if showPlots:
             figS.show()
 
@@ -695,7 +695,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
         if showPlots:
             fig3.show()
         if savePlots:
-            fig3.savefig("plots/doSigChainWithCables_TF.png")
+            fig3.savefig("plots/doSigChainWithCables_TF"+chan+".png")
 
     #zero out everything above 1.3GHz because that's our nyquist limit
     for i in range(0,len(surfF)):
@@ -815,7 +815,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False):
         if showPlots:
             fig0.show()
         if savePlots:
-            fig0.savefig("plots/doPalAnt_inAndOut.png")
+            fig0.savefig("plots/doPalAnt_inAndOut"+chan+".png")
 
 
 
@@ -905,7 +905,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False):
         if showPlots:
             fig.show()
         if savePlots:
-            fig.savefig("plots/doPalAnt_TF.png")
+            fig.savefig("plots/doPalAnt_TF"+chan+".png")
 
         
 
@@ -916,7 +916,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False):
 def doSigChainAndAntenna(chan,showPlots=False,savePlots=False):
     #get antenna
 #    antX,antY,antF,antFFT = doRoofAntWithCables()
-    antX,antY,antF,antFFT = doPalAnt(chan)
+    antX,antY,antF,antFFT = doPalAnt(chan,showPlots=showPlots,savePlots=savePlots)
     
     #get sig chain
     sigChainX,sigChainY,sigChainF,sigChainFFT = doSigChainWithCables(chan,showPlots=showPlots,savePlots=savePlots)
@@ -1009,14 +1009,14 @@ def computeTF(inF,inFFT,outF,outFFT):
     return tfX,tfY,tfF,tfFFT
 
 
-def doTheWholeShebang():
+def doTheWholeShebang(savePlots=False,showPlots=False):
     # Generate the transfer function for all the channels!
     chans = np.loadtxt("chanList.txt",dtype=str)
     allChans = {}
     lab.close("all")
     for chan in chans:
         try:
-            allChans[chan] = doSigChainAndAntenna(chan)
+            allChans[chan] = doSigChainAndAntenna(chan,savePlots=savePlots,showPlots=showPlots)
         except:
             print chan+" FAILED"
     
@@ -1536,11 +1536,9 @@ def makeWaveform(length=513,dF=5./512):
         Tgw += ((3/102.4)*(1-magArray[i]))/(np.pi*2.)
         phaseArray.append(phaseArray[-1]-Tgw)
         
-    return fArray,magArray,phaseArray
-
     fft = tf.gainAndPhaseToComplex(magArray,phaseArray)
 
-    return fArray,fft
+    outX,outY = tf.genTimeSeries(fArray,fft)
 
     return outX,outY
 
