@@ -3,6 +3,8 @@
 #include <string>
 #include <sstream>
 #include <fstream>
+#include <sys/stat.h>
+
 //root
 #include "TTree.h"
 #include "TChain.h"
@@ -17,6 +19,7 @@
 #include "UsefulAnitaEvent.h"
 #include "AnitaConventions.h"
 #include "AnitaGeomTool.h"
+#include "AnitaVersion.h"
 
 #include "scopeParser.h"
 
@@ -32,9 +35,19 @@ TGraph* scopeParseAndAverage(int run) {
   //set where the antenna response scope waveform is
   stringstream inputFile,inputDir;
 
-  inputDir << "/Volumes/ANITA3Data/antarctica14/scopeTraces/";
+  char* calDir = getenv("ANITA3_CALDATA");
+  inputDir << calDir << "/antarctica14/scopeTraces/";
   inputDir << "run" << run << "/";
     
+  struct stat sb;
+  if (!(stat(inputDir.str().c_str(), &sb) == 0 && S_ISDIR(sb.st_mode))) {
+    cout << "run" << run << " scope traces not found, defaulting to 10600" << endl;
+    inputDir.str("");
+    inputDir << calDir << "/antarctica14/scopeTraces/run10600/";
+  }
+
+    
+
 
   //set up for correlating and averaging
   const int numEntries = 248;
@@ -213,7 +226,8 @@ TGraph* surfParseAndAverage(string antName) {
   //set up where the data is
   stringstream name;
   stringstream dirName;
-  dirName << "/Volumes/ANITA3Data/antarctica14/root/";
+  char* calDir = getenv("ANITA3_CALDATA");
+  dirName << calDir << "/antarctica14/root/";
 
 //  const char* anitaDataDir= getenv("ANITA3_CALDATA");
 //  if (anitaDataDir == NULL) {
@@ -351,6 +365,8 @@ int main(int argc, char** argv) {
   
   cout << "Starting!  :D" << endl;
 
+  AnitaVersion::set(3);
+
   string antName;
 
   if (argc == 1) {
@@ -378,7 +394,7 @@ int main(int argc, char** argv) {
   stringstream fileName;
   //Surf
   fileName.str("");
-  fileName << "waveforms/" << antName << "_avgSurfWaveform.txt";
+  fileName << "waveforms_57dB/" << antName << "_avgSurfWaveform.txt";
   outStream.open(fileName.str());
   for (int pt=0; pt<waveGraphSurf->GetN(); pt++) {
     outStream << waveGraphSurf->GetX()[pt] << " " << waveGraphSurf->GetY()[pt] << endl;
@@ -387,7 +403,7 @@ int main(int argc, char** argv) {
 
   //Scope 
   fileName.str("");
-  fileName << "waveforms/" << antName << "_avgScopeWaveform.txt";
+  fileName << "waveforms_57dB/" << antName << "_avgScopeWaveform.txt";
   outStream.open(fileName.str());
   for (int pt=0; pt<waveGraphScope->GetN(); pt++) {
     outStream << waveGraphScope->GetX()[pt] << " " << waveGraphScope->GetY()[pt] << endl;
@@ -396,7 +412,7 @@ int main(int argc, char** argv) {
 
   //save them to a .root file
   fileName.str("");
-  fileName << "waveforms/" << antName << "_avgWaveforms.root";
+  fileName << "waveforms_57dB/" << antName << "_avgWaveforms.root";
   TFile *rootFile = TFile::Open(fileName.str().c_str(),"recreate");
   waveGraphSurf->Write();
   waveGraphScope->Write();

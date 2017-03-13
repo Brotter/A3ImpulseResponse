@@ -94,6 +94,10 @@ def findPalestineAntennaFile(chan, inOrOut):
 
     print chan + " maps to antenna number " + str(antennaNumber)
         
+    if antennaNumber == 52:
+        print "Antenna 52 doesn't have any calibration associated with it :(, using 51 instead"
+        antennaNumber = 51
+
     dir = localDir + "palestine14/SeaveyAntennas/S21s/"
 #    dir = "/Volumes/ANITA3Data/palestine14/SeaveyAntennas/S21s/"
         
@@ -550,6 +554,8 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
     #           phaseShift=1.698
 
     #get scope data from waveforms (extracted from raw data from another script)
+    if chan=="15BH":
+        chan = "15BV"
     scopeRawX,scopeRawY,scopeRawF,scopeRawFFT = importScope(chan)
     scopeX,scopeY = processWaveform(scopeRawX,scopeRawY,"calScope")
     scopeF,scopeFFT = tf.genFFT(scopeX,scopeY)
@@ -1088,14 +1094,14 @@ def findSignalToNoise():
 # Plotting and writing txt files
 #==============================================================================
 
-def writeAll(allChans):
+def writeAll(allChans,prefix=""):
     """
       Writes all the files to disk in a space seperated variable format so that
       I can post them
     """
     for chan in allChans.keys():
         try:
-            file = open("autoPlots/"+chan+".txt","w")
+            file = open("autoPlots/"+prefix+chan+".txt","w")
             for i in range(0,len(allChans[chan][0])):
                 file.write(str(allChans[chan][0][i])+" "+str(allChans[chan][1][i])+"\n")
             file.close()
@@ -1188,8 +1194,8 @@ def plotCompare(allChans):
     figV,axV = lab.subplots(3,sharex=True)
     figH,axH = lab.subplots(3,sharex=True)
 
-    figFFTH,axFFTH = lab.subplots(3,sharex=True)
-    figFFTV,axFFTV = lab.subplots(3,sharex=True)
+    figFFTH,axFFTH = lab.subplots(1,3,sharex=True)
+    figFFTV,axFFTV = lab.subplots(1,3,sharex=True)
 
     try:
         sns.set_palette("viridis", n_colors=16)
@@ -1241,12 +1247,14 @@ def plotCompare(allChans):
                 axFFTV[axIndex].plot(f,logMag,label=chan[:2])
 
         elif (chan[3] == "H"):
+            if (chan[:2] == "13" and axIndex==2):
+                axH[axIndex].plot(waveX,waveY,label=chan[:2],color="red",lw=2)
+                axFFTH[axIndex].plot(f,logMag,label=chan[:2],color="red",lw=2)
+            else:
                 axH[axIndex].plot(waveX,waveY,label=chan[:2])
                 axFFTH[axIndex].plot(f,logMag,label=chan[:2])
 
     #labels and making it look pretty!
-    axV[0].legend(bbox_to_anchor=(1.1, 1.05))
-    axH[0].legend(bbox_to_anchor=(1.1, 1.05))
     
     axV[0].set_title("Vertical\nTop")
     axH[0].set_title("Horizontal\nTop")
@@ -1254,9 +1262,6 @@ def plotCompare(allChans):
     axH[1].set_title("Middle")
     axV[2].set_title("Bottom")
     axH[2].set_title("Bottom")
-
-    axFFTV[0].legend(bbox_to_anchor=(1.1, 1.05))
-    axFFTH[0].legend(bbox_to_anchor=(1.1, 1.05))
 
     axFFTV[0].set_title("Vertical\nTop")
     axFFTH[0].set_title("Horizontal\nTop")
@@ -1270,6 +1275,13 @@ def plotCompare(allChans):
 
     axFFTV[0].set_xlim([0,2])
     axFFTH[0].set_xlim([0,2])
+
+    axV[0].legend(bbox_to_anchor=(1.1, 1.05))
+    axH[0].legend(bbox_to_anchor=(1.1, 1.05))
+
+    axFFTV[0].legend(bbox_to_anchor=(1.1, 1.05))
+    axFFTH[0].legend(bbox_to_anchor=(1.1, 1.05))
+
 
     figV.show()
     figH.show()
