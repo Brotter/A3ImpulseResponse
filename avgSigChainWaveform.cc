@@ -20,6 +20,7 @@
 #include "AnitaConventions.h"
 #include "AnitaGeomTool.h"
 #include "AnitaVersion.h"
+#include "AnalysisWaveform.h"
 
 #include "scopeParser.h"
 
@@ -307,9 +308,34 @@ TGraph* surfParseAndAverage(string antName) {
     //Get calibrated waveform for the channel of interest
     TGraph *calibGraph = useful->getGraph(ring,phi-1,pol);
     delete(useful);
-    //upsample to 10GS/s (0.1ns bins)
-    TGraph *interpGraph = FFTtools::getInterpolatedGraph(calibGraph,0.1);
+
+
+
+    //create  an Analysis Waveform object to do some other stuff
+    //This also does an AKIMA spline to get even sampling (1/2.6GS/s = 
+    AnalysisWaveform *aWave = new AnalysisWaveform(calibGraph->GetN(),calibGraph->GetX(),calibGraph->GetY());
     delete(calibGraph);
+    //also time domain zero pad so they are the same length
+    aWave->forceEvenSize(260);
+
+
+
+    int nPts = aWave->Neven();
+    int nPtsFFT = nPts/2. + 1;
+    double dT = 1./2.6;
+    double new_dT = 1./10.;
+    int new_nPtsFFT = ((dT/new_dT)+1)*(nPtsFFT - 1);
+    int padding = new_nPtsFFT - nPtsFFT;
+    //    cout << "nPts=" << nPts << " nPtsFFT=" << nPtsFFT << " new_nPtsFFT=" << new_nPtsFFT << " padding=" << padding << endl;
+    
+
+    aWave->padFreqAdd(padding);
+    TGraph *interpGraph = new TGraph(aWave->Neven(),aWave->even()->GetX(),aWave->even()->GetY());
+    delete(aWave);
+
+    //upsample to 10GS/s (0.1ns bins)
+    //    TGraph *interpGraph = FFTtools::getInterpolatedGraph(calibGraph,0.1);
+    //    delete(calibGraph);
     //zero pad to 1024 bins
     TGraph *finalGraph = brotterTools::zeroPadToLength(interpGraph,1024);
     delete(interpGraph);

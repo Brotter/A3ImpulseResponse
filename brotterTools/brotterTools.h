@@ -51,6 +51,7 @@ class brotterTools
   static TH1D *correlationDistribution(Int_t numGraphs, TGraph **grPtrPtr);
   static TGraph *correlationPattern(Int_t numGraphs, TGraph **grPtrPtr);
   static TGraph *zeroPadToLength(const TGraph *inGraph, Int_t endLength);
+  static TGraph *zeroPadToLengthEqual(const TGraph *inGraph, Int_t endLength);
 
 };
 

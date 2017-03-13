@@ -80,7 +80,7 @@ TH1D *brotterTools::correlationDistribution(Int_t numGraphs, TGraph **grPtrPtr)
  }
 
 
-TGraph *brotterTools::zeroPadToLength(const TGraph *inGraph, Int_t endLength) 
+TGraph *brotterTools::zeroPadToLengthEqual(const TGraph *inGraph, Int_t endLength) 
 {
   /* 
      Zero pad a TGraph to have endLength points
@@ -124,6 +124,41 @@ TGraph *brotterTools::zeroPadToLength(const TGraph *inGraph, Int_t endLength)
   //zero pad end (remember odd value!)
   for (int pt=0; pt<needToAdd/2 + odd; pt++) {
     outGraph->SetPoint(outGraph->GetN(),outGraph->GetX()[outGraph->GetN()-1]+dT,0);
+  }
+
+  //done!
+  return outGraph;
+
+}
+
+
+TGraph *brotterTools::zeroPadToLength(const TGraph *inGraph, Int_t endLength) 
+{
+  /* 
+     Zero pad a TGraph to have endLength points
+     Creates and returns a new TGraph
+  */
+
+  //make output graph
+  TGraph *outGraph = new TGraph(*inGraph);
+
+  //check if you are actually trying to shorten something, if you are, just copy the initial graph and return it
+  if (inGraph->GetN() >= endLength) {
+    cout << "Warning from zeroPadToLength: Graph is already longer than you want!! ";
+    cout << "(" << inGraph->GetN() << " >= " << endLength << ")" << endl;
+    delete(outGraph);
+    outGraph = new TGraph(*inGraph);
+    return outGraph;
+  }
+  
+  //find out what the binning will be, as well as inGraph start point
+  double tStart = inGraph->GetX()[0];
+  double dT = inGraph->GetX()[1] - tStart;
+
+  //zero pad end (remember odd value!)
+  while (outGraph->GetN() < endLength) {
+    int pt = outGraph->GetN();
+    outGraph->SetPoint(pt,outGraph->GetX()[pt-1]+dT,0);
   }
 
   //done!
