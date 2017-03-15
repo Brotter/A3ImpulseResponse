@@ -13,6 +13,8 @@
 #include "TH2F.h"
 #include "TGraph.h"
 #include "TProfile2D.h"
+#include "TGraphErrors.h"
+
 //anita
 #include "RawAnitaHeader.h"
 #include "RawAnitaEvent.h"
@@ -21,6 +23,7 @@
 #include "AnitaGeomTool.h"
 #include "AnitaVersion.h"
 #include "AnalysisWaveform.h"
+#include "RFInterpolate.h"
 
 #include "scopeParser.h"
 
@@ -29,6 +32,8 @@
 
 using namespace std;
 
+
+string outDir = "waveforms_new/";
 
 
 TGraph* scopeParseAndAverage(int run) {
@@ -148,7 +153,7 @@ void surfInfoMaker(string antName, int numGraphs,TGraph **waveGraphs) {
 
   // Save a bunch of interesting things about generating the surf waveform (since it messes up so often)
   name.str("");
-  name << "waveforms/" << antName << "_surfInfo.root";
+  name << outDir << antName << "_surfInfo.root";
   TFile *testFile = TFile::Open(name.str().c_str(),"recreate");
 
   //Save a copy of the histogram
@@ -170,14 +175,40 @@ void surfInfoMaker(string antName, int numGraphs,TGraph **waveGraphs) {
   corrPattern4->SetTitle("corrPattern4");
 
   //write the movie of the correlation, this takes forever (and is super inefficient) so you should probably leave it commented most of the time
+  //also try doing this correlation and averaging myself?
+  TGraph *myCorr = new TGraph(*waveGraphs[0]);
+
   for (int i=2; i<numGraphs; i++) {
+    cout << "surfInfoMaker: " << i << "/" << numGraphs << "\r";
     TGraph *tempGraph = FFTtools::correlateAndAverage(i,waveGraphs);
     name.str("");
     name << "averagedGraph" << i;
     tempGraph->SetName(name.str().c_str());
     tempGraph->Write();
+
+    TGraph *tempGraph2 = brotterTools::rotateToMatch(myCorr,waveGraphs[i]);
+    name.str("");
+    name << "rotated" << i;
+    tempGraph2->SetName(name.str().c_str());
+    tempGraph2->Write();
+        
+    for (int pt=0; pt<myCorr->GetN(); pt++) {
+      myCorr->GetY()[pt] += tempGraph2->GetY()[pt];
+    }
+    name.str("");
+    name << "myCorr" << i;
+    myCorr->SetName(name.str().c_str());
+    myCorr->Write();
+
+
+
     delete(tempGraph);
+    delete(tempGraph2);
+
   }
+
+
+
   hist->Write();
   corrPattern->Write();
   corrPattern2->Write();
@@ -310,34 +341,46 @@ TGraph* surfParseAndAverage(string antName) {
     delete(useful);
 
 
+    //FFTtools has a freq domain interpolator!
+    //    TGraph *interpGraphA = FFTtools::getInterpolatedGraph(calibGraph,1./2.6);
+    //    
+
+
+    //Cosmin wants me to try stuff in RFInterpolate.h
+    TGraphErrors *cosminGraph = FFTtools::getInterpolatedGraphSparseInvert(calibGraph,1/2.6,260);
+    TGraph *interpGraphA = new TGraph(cosminGraph->GetN(),cosminGraph->GetX(),cosminGraph->GetY());
+    TGraph *interpGraph = FFTtools::getInterpolatedGraphFreqDom(interpGraphA,0.1);
 
     //create  an Analysis Waveform object to do some other stuff
     //This also does an AKIMA spline to get even sampling (1/2.6GS/s = 
-    AnalysisWaveform *aWave = new AnalysisWaveform(calibGraph->GetN(),calibGraph->GetX(),calibGraph->GetY());
-    delete(calibGraph);
+    //    AnalysisWaveform *aWave = new AnalysisWaveform(calibGraph->GetN(),calibGraph->GetX(),calibGraph->GetY());
+    //    delete(calibGraph);
     //also time domain zero pad so they are the same length
-    aWave->forceEvenSize(260);
+    //    aWave->forceEvenSize(260);
+
+    //need to ensure "beginning and ending of waveform go to zero
+    
 
 
 
-    int nPts = aWave->Neven();
-    int nPtsFFT = nPts/2. + 1;
-    double dT = 1./2.6;
-    double new_dT = 1./10.;
-    int new_nPtsFFT = ((dT/new_dT)+1)*(nPtsFFT - 1);
-    int padding = new_nPtsFFT - nPtsFFT;
+//    int nPts = aWave->Neven();
+//    int nPtsFFT = nPts/2. - 1;
+//    double dT = 1./2.6;
+//    double new_dT = 1./10.;
+//    int new_nPtsFFT = ((dT/new_dT)+1)*(nPtsFFT - 1);
+//    int padding = new_nPtsFFT - nPtsFFT;
     //    cout << "nPts=" << nPts << " nPtsFFT=" << nPtsFFT << " new_nPtsFFT=" << new_nPtsFFT << " padding=" << padding << endl;
     
 
-    aWave->padFreqAdd(padding);
-    TGraph *interpGraph = new TGraph(aWave->Neven(),aWave->even()->GetX(),aWave->even()->GetY());
-    delete(aWave);
+    //    aWave->padFreqAdd(padding);
+    //    TGraph *interpGraph = new TGraph(aWave->Neven(),aWave->even()->GetX(),aWave->even()->GetY());
+    //    delete(aWave);
 
     //upsample to 10GS/s (0.1ns bins)
     //    TGraph *interpGraph = FFTtools::getInterpolatedGraph(calibGraph,0.1);
     //    delete(calibGraph);
     //zero pad to 1024 bins
-    TGraph *finalGraph = brotterTools::zeroPadToLength(interpGraph,1024);
+    TGraph *finalGraph = brotterTools::makeLength(interpGraph,1024);
     delete(interpGraph);
 
 
@@ -371,7 +414,10 @@ TGraph* surfParseAndAverage(string antName) {
   
   
   //if you want to save the surf info (about correlating and averaging mostly)
-  //  surfInfoMaker(antName,entryAveraged,waveGraphs);
+  surfInfoMaker(antName,entryAveraged,waveGraphs);
+
+
+  
 
   //memory management!
   for (int i=0; i<entryAveraged; i++) {
@@ -420,7 +466,7 @@ int main(int argc, char** argv) {
   stringstream fileName;
   //Surf
   fileName.str("");
-  fileName << "waveforms_57dB/" << antName << "_avgSurfWaveform.txt";
+  fileName << outDir << antName << "_avgSurfWaveform.txt";
   outStream.open(fileName.str());
   for (int pt=0; pt<waveGraphSurf->GetN(); pt++) {
     outStream << waveGraphSurf->GetX()[pt] << " " << waveGraphSurf->GetY()[pt] << endl;
@@ -429,7 +475,7 @@ int main(int argc, char** argv) {
 
   //Scope 
   fileName.str("");
-  fileName << "waveforms_57dB/" << antName << "_avgScopeWaveform.txt";
+  fileName << outDir << antName << "_avgScopeWaveform.txt";
   outStream.open(fileName.str());
   for (int pt=0; pt<waveGraphScope->GetN(); pt++) {
     outStream << waveGraphScope->GetX()[pt] << " " << waveGraphScope->GetY()[pt] << endl;
@@ -438,7 +484,7 @@ int main(int argc, char** argv) {
 
   //save them to a .root file
   fileName.str("");
-  fileName << "waveforms_57dB/" << antName << "_avgWaveforms.root";
+  fileName << outDir << antName << "_avgWaveforms.root";
   TFile *rootFile = TFile::Open(fileName.str().c_str(),"recreate");
   waveGraphSurf->Write();
   waveGraphScope->Write();

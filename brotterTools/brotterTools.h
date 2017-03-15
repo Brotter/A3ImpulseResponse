@@ -52,6 +52,10 @@ class brotterTools
   static TGraph *correlationPattern(Int_t numGraphs, TGraph **grPtrPtr);
   static TGraph *zeroPadToLength(const TGraph *inGraph, Int_t endLength);
   static TGraph *zeroPadToLengthEqual(const TGraph *inGraph, Int_t endLength);
+  static TGraph *cutToLength(const TGraph *inGraph, Int_t endLength);
+  static TGraph *makeLength(const TGraph *inGraph, Int_t endLength);
+  static TGraph *rotateToMatch(TGraph *grA, TGraph *grB);
+  static TGraph *shiftToMatch(TGraph *grA, TGraph *grB);
 
 };
 

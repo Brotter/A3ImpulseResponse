@@ -58,7 +58,7 @@ cablesBaseDir = localDir + "antarctica14/S21ExternalRFChainForSingleChannelCalli
 #cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
 
 # Signal chain data (57dB seems to be a happy middle power).
-waveformDir = localDir + "waveforms_57dB/"
+waveformDir = localDir + "waveforms/"
 #waveformDir = "/Users/brotter/benCode/impulseResponse/integratedTF/waveforms_57dB/"
 
 roofDir = "Rooftop_Seevey_Antenna/Antenna_Impulse_Testing/"
@@ -548,7 +548,7 @@ P2SFFT = False
 P2AF = False
 P2AFFT = False
 
-def doSigChainWithCables(chan,savePlots=False,showPlots=False):
+def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
     #phase shifts are likely pointless!
     #they were: scopeFFT=1.26
     #           phaseShift=1.698
@@ -566,6 +566,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
         ax[0].plot(scopeRawX,scopeRawY,label="raw scope pulse")
         ax[0].plot(scopeX,scopeY,label="processed scope pulse")
         ax[0].set_xlabel("Time (ns)")
+        ax[0].set_xlim([0,200])
         ax[0].set_ylabel("Voltage (V)")
         ax[0].legend()
         ax[1].plot(scopeRawF,tf.calcLogMag(scopeRawF,scopeRawFFT),label="raw scope pulse")
@@ -573,6 +574,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
         ax[1].set_xlabel("Frequency (GHz)")
         ax[1].set_ylabel("Spectral Power (dBm/Hz)")
         ax[1].set_ylim([-70,-20])
+        ax[1].set_xlim([0,4])
         ax[1].legend()
         if savePlots:
             fig.savefig("plots/doSigChainWithCables_Input"+chan+".png")
@@ -612,7 +614,8 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
     ampaInputF = scopeF
     ampaInputX,ampaInputY = tf.genTimeSeries(ampaInputF,ampaInputFFT)
 
-    if showPlots or savePlots:
+    if (showPlots or savePlots) and (chan == "01BH"):
+        
         fig2,ax2 = lab.subplots(3,figsize=(11,8.5))
         ax2[0].set_title("Cables")
         ax2[0].set_ylabel("phase (radians)")
@@ -638,7 +641,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
         if showPlots:
             fig2.show()
         if savePlots:
-            fig2.savefig("plots/doSigChainWithCables_Cables"+chan+".png")
+            fig2.savefig("plots/doSigChainWithCables_Cables.png")
             
     #get the surf (extracted from ROOT data from another script)
     surfRawX,surfRawY,surfRawF,surfRawFFT = importSurf(chan)
@@ -650,15 +653,19 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
 
     if savePlots or showPlots:
         figS,axS = lab.subplots(2,figsize=(11,8.5))
-        axS[0].set_title("Raw Signal Chain SURF output")
-        axS[0].plot(surfRawX,surfRawY,label="raw SURF pulse")
+        axS[0].set_title("Upsampled, correlated, and averaged SURF output")
+        max = np.argmax(surfRawY)
+        axS[0].set_title(chan)
+        axS[0].plot(surfRawX,np.roll(surfRawY,100-max),label=chan)
         axS[0].set_xlabel("Time (ns)")
         axS[0].set_ylabel("Voltage (V)")
+        axS[0].set_ylim([-0.2,0.2])
         axS[0].legend()
-        axS[1].plot(surfRawF,tf.calcLogMag(surfRawF,surfRawFFT),label="raw surf pulse")
+        axS[1].plot(surfRawF,tf.calcLogMag(surfRawF,surfRawFFT),label=chan)
         axS[1].set_xlabel("Frequency (GHz)")
         axS[1].set_ylabel("Spectral Power (dBm/Hz)")
-        axS[1].set_ylim([-100,-40])
+        axS[1].set_ylim([-110,-40])
+        axS[1].set_xlim([0,3])
         axS[1].legend()
         if savePlots:
             figS.savefig("plots/doSigChainWithCables_SURF"+chan+".png")
@@ -682,10 +689,13 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
         fig3,ax3 = lab.subplots(2,figsize=(11,8.5))
 
         ax3[0].plot(ampaInputX,ampaInputY,label="Input Pulse, Cables Removed",color="red")
-        ax3[0].plot(surfRawX,surfRawY,label="raw SURF waveform",color="blue")
-        ax3[0].plot(tfX,np.roll(tfY,100),label="Signal Chain Transfer Function",color="black")
+        surfRawYMax = np.argmax(surfRawY)
+        ax3[0].plot(surfRawX,np.roll(surfRawY,200-surfRawYMax),label="raw SURF waveform",color="blue")
+        tfYMax = np.argmax(tfY)
+        ax3[0].plot(tfX,np.roll(tfY,100-tfYMax),label="Signal Chain Transfer Function",color="black")
         ax3[0].set_ylabel("Voltage (V)")
         ax3[0].set_xlabel("time (ns)")
+        ax3[0].set_ylim([-0.1,0.4])
 #        ax3[0].set_xlim([20,80])
         ax3[0].legend()
 
@@ -704,14 +714,21 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False):
             fig3.savefig("plots/doSigChainWithCables_TF"+chan+".png")
 
     #zero out everything above 1.3GHz because that's our nyquist limit
-    for i in range(0,len(surfF)):
-        if surfF[i] > 1.3:
-            tfFFT[i] /= 1e9
+#    for i in range(0,len(surfF)):
+#        if surfF[i] > 1.3:
+#            tfFFT[i] /= 1e9
     
     #clean up the tail and make it start at the beginning
     tfY = np.roll(tfY,30-np.argmax(tfY))
     tfY = tf.hanningTail(tfY,200,100)
     
+    tfF,tfFFT = tf.genFFT(tfX,tfY)
+
+
+    if writeFiles:
+        writeOne([surfX,tfY],chan,"sigChain")
+
+
     return surfX,tfY,surfF,tfFFT 
 
 
@@ -750,7 +767,7 @@ def doRoofAntWithCables():
     return antTFX,antTFY,antTFF,antTFFFT
 
 
-def doPalAnt(chan,savePlots=False,showPlots=False):
+def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     #
     # Go through ALL the antennas measured in palestine 2014
     #
@@ -914,18 +931,22 @@ def doPalAnt(chan,savePlots=False,showPlots=False):
             fig.savefig("plots/doPalAnt_TF"+chan+".png")
 
         
+    if writeFiles:
+        writeOne([antTFX,antTFY],chan,"palAnt")
+
 
 
     return antTFX,antTFY,antTFF,antTFFFT
 
 
-def doSigChainAndAntenna(chan,showPlots=False,savePlots=False):
+def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
     #get antenna
 #    antX,antY,antF,antFFT = doRoofAntWithCables()
-    antX,antY,antF,antFFT = doPalAnt(chan,showPlots=showPlots,savePlots=savePlots)
+    antX,antY,antF,antFFT = doPalAnt(chan,showPlots=showPlots,savePlots=savePlots,writeFiles=writeFiles)
     
     #get sig chain
-    sigChainX,sigChainY,sigChainF,sigChainFFT = doSigChainWithCables(chan,showPlots=showPlots,savePlots=savePlots)
+    print "doSigChainAndAntenna:getSigChain"
+    sigChainX,sigChainY,sigChainF,sigChainFFT = doSigChainWithCables(chan,showPlots=showPlots,savePlots=savePlots,writeFiles=writeFiles)
 
     #convolve the two (full ANITA3 transfer function!)
     a3F = sigChainF
@@ -935,13 +956,27 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False):
     
     if (showPlots or savePlots):
         lab.close("all")
-        fig,ax = lab.subplots(3)
+        fig,ax = lab.subplots(4,figsize=(11,8.5))
+        ax[0].set_title(chan)
         ax[0].plot(antX,np.roll(antY,100),label="Antenna")
         ax[0].legend()
+        ax[0].set_ylabel("Voltage (~V)")
         ax[1].plot(sigChainX,np.roll(sigChainY,100),label="sigChain",color="red")
         ax[1].legend()
-        ax[2].plot(a3X,np.roll(a3Y,100),label="Convolution",color="black")
+        ax[1].set_ylim([-0.2,0.2])
+        ax[1].set_ylabel("Voltage (~V)")
+        a3YPeak = np.argmax(a3Y)
+        ax[2].plot(a3X,np.roll(a3Y,100-a3YPeak),label="Convolution",color="black")
         ax[2].legend()
+        ax[2].set_ylim([-0.6,0.6])
+        ax[2].set_xlabel("Time (ns)")
+        ax[2].set_ylabel("Voltage (~V)")
+        
+        ax[3].plot(a3F,tf.calcLogMag(a3F,a3FFT),color="black")
+        ax[3].set_ylim([-100,-30])
+        ax[3].set_xlim([0.1,1.5])
+        ax[3].set_xlabel("Frequency (GHz)")
+        ax[3].set_ylabel("Gain (dBm)")
 
         if showPlots:
             fig.show()
@@ -960,6 +995,10 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False):
     a3Y = np.roll(a3Y,40-np.argmax(a3Y))
     a3Y = tf.hanningTail(a3Y,300,200)
 #    a3X,a3Y = tf.zeroPadEqual(a3X,a3Y,1024)
+
+    if writeFiles:
+        writeOne([a3X,a3Y],chan,"fullTF")
+        
     
     return a3X,a3Y
 
@@ -1019,18 +1058,17 @@ def computeTF(inF,inFFT,outF,outFFT):
     return tfX,tfY,tfF,tfFFT
 
 
-def doTheWholeShebang(savePlots=False,showPlots=False):
+def doTheWholeShebang(savePlots=False,showPlots=False,writeFiles=False):
     # Generate the transfer function for all the channels!
     chans = np.loadtxt("chanList.txt",dtype=str)
     allChans = {}
     lab.close("all")
     for chan in chans:
         try:
-            allChans[chan] = doSigChainAndAntenna(chan,savePlots=savePlots,showPlots=showPlots)
+            allChans[chan] = doSigChainAndAntenna(chan,savePlots=savePlots,showPlots=showPlots,writeFiles=writeFiles)
         except:
             print chan+" FAILED"
     
-    writeAll(allChans)
 
     return allChans
 
@@ -1094,17 +1132,27 @@ def findSignalToNoise():
 # Plotting and writing txt files
 #==============================================================================
 
-def writeAll(allChans,prefix=""):
+def writeOne(wave,chan,prefix):
+    """
+      Writes a single file to disk in a space seperated variable format so that
+      I can post it
+    """
+    file = open("transferFunctions/"+prefix+"_"+chan+".txt","w")
+    for i in range(0,len(wave[0])):
+        file.write(str(wave[0][i])+" "+str(wave[1][i])+"\n")
+    file.close()
+    print "wrote "+chan+" to file"
+
+    return
+
+def writeAll(allChans,prefix):
     """
       Writes all the files to disk in a space seperated variable format so that
       I can post them
     """
     for chan in allChans.keys():
         try:
-            file = open("autoPlots/"+prefix+chan+".txt","w")
-            for i in range(0,len(allChans[chan][0])):
-                file.write(str(allChans[chan][0][i])+" "+str(allChans[chan][1][i])+"\n")
-            file.close()
+            writeOne(allChans[chan],chan,prefix)
         except:
             print chan+" FAILED"
 

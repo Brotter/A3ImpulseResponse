@@ -165,3 +165,108 @@ TGraph *brotterTools::zeroPadToLength(const TGraph *inGraph, Int_t endLength)
   return outGraph;
 
 }
+
+
+TGraph *brotterTools::cutToLength(const TGraph *inGraph, Int_t endLength) 
+{
+  /* 
+     Cuts off the final points of a TGraph so that it is endLength long
+     Creates and returns a new TGraph
+  */
+
+  //make output graph
+  TGraph *outGraph = new TGraph(*inGraph);
+
+  //check if you are actually trying to shorten something, if you are, just copy the initial graph and return it
+  if (inGraph->GetN() <= endLength) {
+    cout << "Warning from zeroPadToLength: Graph is already shorter than you want!! ";
+    cout << "(" << inGraph->GetN() << " >= " << endLength << ")" << endl;
+    delete(outGraph);
+    outGraph = new TGraph(*inGraph);
+    return outGraph;
+  }
+  
+  for (int pt=0; pt<endLength; pt++) {
+    outGraph->SetPoint(pt,inGraph->GetX()[pt],inGraph->GetY()[pt]);
+  }
+
+  //done!
+  return outGraph;
+
+}
+
+
+TGraph *brotterTools::makeLength(const TGraph *inGraph, Int_t endLength)
+{
+  /*
+
+    Makes a graph the exact length you want by cutting or zero padding the end
+
+    Returns a new TGraph
+
+   */
+
+  TGraph *outGraph = NULL;
+  if (inGraph->GetN() < endLength) {
+    outGraph = brotterTools::zeroPadToLength(inGraph,endLength);
+  }
+  else if (inGraph->GetN() > endLength) {
+    outGraph = brotterTools::cutToLength(inGraph,endLength);
+  }
+  else {
+    outGraph = new TGraph(*inGraph);
+  }
+
+  return outGraph;
+
+}
+
+TGraph* brotterTools::rotateToMatch(TGraph *grA, TGraph *grB) {
+  /*
+
+    Finds the peak correlation value of the two graphs, then rotates grB so that it aligns with the first
+
+   */
+
+  TGraph *outGraph = new TGraph(*grB);
+
+  TGraph *grCorAB = FFTtools::getCorrelationGraph(grA,grB);
+
+  Int_t peakBin = FFTtools::getPeakBin(grCorAB);
+  delete(grCorAB);
+
+  Int_t offset=peakBin-(grCorAB->GetN()/2);
+
+  FFTtools::rotate(outGraph,offset);
+
+  return outGraph;
+
+
+}
+
+
+
+TGraph* brotterTools::shiftToMatch(TGraph *grA, TGraph *grB) {
+  /*
+
+    Finds the peak correlation value of the two graphs, then shifts the x axis of grB so that it aligns with the first
+
+   */
+
+  TGraph *outGraph = new TGraph(*grB);
+
+  TGraph *grCorAB = FFTtools::getCorrelationGraph(grA,grB);
+
+  Int_t peakBin = FFTtools::getPeakBin(grCorAB);
+  delete(grCorAB);
+
+  Int_t offset=peakBin-(grCorAB->GetN()/2);
+
+  for (int pt=0; pt<outGraph->GetN(); pt++) {
+    outGraph->GetX()[pt] += offset;
+  }
+
+  return outGraph;
+
+
+}
