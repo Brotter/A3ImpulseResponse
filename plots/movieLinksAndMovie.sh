@@ -7,7 +7,7 @@ for file in `ls ${inName}*.png`; do
 done
 
 cd links
-ffmpeg -r 5 -f image2 -i imLink_%02d.png ../${inName}.mp4
+ffmpeg -r 5 -f image2 -i imLink_%02d.png -vcodec mpeg4 ../${inName}.mp4
 rm -f imLink*
 cd ../
 

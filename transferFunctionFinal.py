@@ -955,8 +955,8 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
     a3X,a3Y = tf.genTimeSeries(a3F,a3FFT)
     
     if (showPlots or savePlots):
-        lab.close("all")
-        fig,ax = lab.subplots(4,figsize=(11,8.5))
+#        lab.close("all")
+        fig,ax = lab.subplots(5,figsize=(11,8.5))
         ax[0].set_title(chan)
         ax[0].plot(antX,np.roll(antY,100),label="Antenna")
         ax[0].legend()
@@ -977,6 +977,10 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
         ax[3].set_xlim([0.1,1.5])
         ax[3].set_xlabel("Frequency (GHz)")
         ax[3].set_ylabel("Gain (dBm)")
+
+        ax[4].plot(a3F,tf.calcPhase(tf.minimizeGroupDelayFromFFT(a3F,a3FFT,highLim=256)),color="black")
+        ax[4].set_xlim([0,2])
+        ax[4].set_ylim([-20,20])
 
         if showPlots:
             fig.show()
@@ -1062,7 +1066,7 @@ def doTheWholeShebang(savePlots=False,showPlots=False,writeFiles=False):
     # Generate the transfer function for all the channels!
     chans = np.loadtxt("chanList.txt",dtype=str)
     allChans = {}
-    lab.close("all")
+#    lab.close("all")
     for chan in chans:
         try:
             allChans[chan] = doSigChainAndAntenna(chan,savePlots=savePlots,showPlots=showPlots,writeFiles=writeFiles)
@@ -1237,7 +1241,7 @@ def plotCompare(allChans):
       can fix them later of course)
     """
 
-    lab.close("all")
+#    lab.close("all")
 
     figV,axV = lab.subplots(3,sharex=True)
     figH,axH = lab.subplots(3,sharex=True)
@@ -1544,7 +1548,7 @@ def testWeiner():
 
     inOutScale = np.max(y) / np.max(outY)
 
-    lab.close("all")
+#    lab.close("all")
     fig,ax = lab.subplots(2)
     ax[0].plot(np.log10(a),label="in")
     ax[0].plot(np.log10(b),label="out")
@@ -1634,3 +1638,27 @@ def makeWaveform(length=513,dF=5./512):
     return outX,outY
 
 
+def compPhase(allChans):
+
+    fig,ax = lab.subplots(2,2)
+    
+    for chan in allChans.keys():
+        axIndex=0
+        if (chan[-1] == "H"): axIndex=1
+        f,fft = tf.genFFT(allChans[chan][0],allChans[chan][1])
+        if (chan=="05MH"):
+            ax[1][axIndex].plot(f,tf.calcLogMag(f,fft),label=chan,color="red")
+            ax[0][axIndex].plot(f,tf.calcPhase(tf.minimizeGroupDelayFromFFT(f,fft,highLim=256)),color="red")
+        else:
+            ax[1][axIndex].plot(f,tf.calcLogMag(f,fft),label=chan)
+            ax[0][axIndex].plot(f,tf.calcPhase(tf.minimizeGroupDelayFromFFT(f,fft,highLim=256)))
+            
+
+
+
+    ax[0][0].legend()
+    ax[1][0].legend()
+
+    fig.show()
+
+        

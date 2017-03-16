@@ -158,3 +158,19 @@ def selectExpoZone(dataTime,dataVolt):
 
 
 
+
+def weightedLeastSqrs(x,y,w):
+
+    #from https://www.che.udel.edu/pdf/FittingData.pdf
+
+    sumX = np.sum(x*w**2)
+    sumX2= np.sum(x**2*w**2)
+    sumY = np.sum(y*w**2)
+    sumXY = np.sum((x*y)*w**2)
+    sumW = np.sum(w**2)
+    
+
+    slope = ( (sumX*sumY)-(sumXY*sumW) ) / ( sumX**2 - (sumX2)*(sumW) )
+    int = ( sumXY - slope*sumX2 ) / sumX
+
+    return slope,int

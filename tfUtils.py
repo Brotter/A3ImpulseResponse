@@ -684,10 +684,11 @@ def correlation(graphA,graphB):
 
     xCorr = np.conj(fftA)*fftB
 
+
     iXCorr = fftw.irfft(xCorr)
     
-    return np.roll(iXCorr,len(iXCorr)/2)
-#    return iXCorr
+#    return np.roll(iXCorr,len(iXCorr)/2)
+    return iXCorr
    
 
 def findPeakCorr(dataA,dataB,xMin=0,xMax=-1):
@@ -1330,27 +1331,28 @@ def compPhaseShifts4(y):
     return
 
 
-def minimizeGroupDelayFromFFT(f,fft):
+def minimizeGroupDelayFromFFT(f,fft,lowLim=0,highLim=-1):
 
     gain = np.absolute(fft)
     phase = calcPhase(fft)
     gdOrig = calcGroupDelay(fft)
 
-    phaseNew = minimizeGroupDelayFromPhase(f,phase)
+    phaseNew = minimizeGroupDelayFromPhase(f,phase,lowLim=lowLim,highLim=highLim)
     
-    fftNew = gainAndPhaseToComplex(gain,phase)
+    fftNew = gainAndPhaseToComplex(gain,phaseNew)
 
     return fftNew
     
 
-def minimizeGroupDelayFromPhase(f,phase):
+def minimizeGroupDelayFromPhase(f,phase,lowLim=30,highLim=114):
 
     #limits are to try and just fit for our band
-    phaseFit = mf.fitLin(f[30:114],phase[30:114],[0,0,0])
+    phaseFit = mf.fitLin(f[lowLim:highLim],phase[lowLim:highLim],[0,0,0])
     phaseCorr = mf.lambdaLin(phaseFit[0],f)
     phaseNew = phase - phaseCorr
 
     return phaseNew
+
 
 
 def plotMinimizedGroupDelay(f,fft):
@@ -1407,3 +1409,85 @@ def exampleMinimizePlot():
     f,fft = genFFT(waveX,waveY)
     
     return
+
+
+
+def phaseFitCorrelate(waveA,waveB):
+    #tries to determine the correlation (and returns two "correlated" graphs) by convolving and fitting the phase
+    
+
+    #first get the ffts of both waveforms
+    waveAX,waveAY = waveA
+    fA,fftA = genFFT(waveAX,waveAY)
+    waveBX,waveBY = waveB
+    fB,fftB = genFFT(waveBX,waveBY)
+
+
+    #then find the convolution
+    conv = np.conj(fftA)*fftB
+
+    #find the unwrapped phase of the convolution
+    convM,convP = complexToGainAndPhase(conv)
+    convP = np.unwrap(convP)
+    
+    #then fit the phase of that, weighted by magnitude of the system
+    phaseFit = mf.weightedLeastSqrs(fB,convP,convM)
+    slope = phaseFit[0]
+    yint = phaseFit[1]
+
+    #now find the unwrapped phase of the waveform you want to shift
+    magB,phaseB = complexToGainAndPhase(fftB)
+    phaseB = np.unwrap(phaseB)
+
+    #shift it by the fit
+    phaseB -= mf.lambdaLin([slope,0,yint],fB)
+
+    #then transform it back into the time domain
+    fftB = gainAndPhaseToComplex(magB,phaseB)
+    waveBY = fftw.irfft(fftB)
+
+    return waveAY,waveBY
+
+
+def testPhaseFitCorrelate():
+    #test out the phaseFitCorrelate() function
+
+    lab.close("all")
+
+    #get some waveforms
+    waveA = np.loadtxt("waveforms/14TH_avgSurfWaveform.txt").T
+    waveB = np.loadtxt("waveforms/15TH_avgSurfWaveform.txt").T
+    #determine the differences between their t(0)s
+    startDiff = waveA[0][0] - waveB[0][0]
+
+    #do phaseFitCorrelate()
+    a,b, = phaseFitCorrelate(waveA,waveB)
+
+    #plot that
+    fig,ax = lab.subplots(3)
+    ax[0].set_title("Original")
+    ax[0].plot(waveA[0],waveA[1],label="waveA")
+    ax[0].plot(waveB[0],waveB[1],label="waveB")
+    ax[0].legend()
+
+    ax[1].set_title("phaseFitCorrelate()")
+    ax[1].plot(waveA[0],a,label="waveA")
+    ax[1].plot(waveB[0]+startDiff,b,label="waveB")
+    ax[1].set_ylabel("Voltage (V)")
+    ax[1].legend()
+
+    #now do it with the dumbest correlation you can imagine
+    argmaxA = np.argmax(waveA[1])
+    maxA = waveA[0][argmaxA]
+    argmaxB = np.argmax(waveB[1])
+    maxB = waveB[0][argmaxB]
+    diff = maxA-maxB
+
+    ax[2].set_title("dumb correlation")
+    ax[2].plot(waveA[0],waveA[1],label="waveA")
+    ax[2].plot(waveB[0]+diff,waveB[1],label="waveB")
+    ax[2].set_xlabel("Time (ns)")
+    ax[2].legend()
+
+    fig.show()
+    

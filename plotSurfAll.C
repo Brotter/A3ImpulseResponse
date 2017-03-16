@@ -18,6 +18,9 @@ void plotSurfAll(string antName){
     TGraph *rotGraph = (TGraph*)inFile->Get(name.str().c_str());
     rotGraph->SetLineColor(kRed);
       
+    name.str("");
+    name << "ev" << i;
+    currGraph->SetTitle(name.str().c_str());
     currGraph->Draw("aC*");
     currGraph->GetHistogram()->SetMaximum(120);
     currGraph->GetHistogram()->SetMinimum(-120);
