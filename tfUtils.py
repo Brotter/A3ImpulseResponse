@@ -32,6 +32,7 @@ import cmath #for doing complex square root
 
 import benMathFit as mf
 
+import glob
 
 def genFFT(graphX,graphY):
     outFFT = fftw.rfft(graphY)
@@ -1422,7 +1423,6 @@ def phaseFitCorrelate(waveA,waveB):
     waveBX,waveBY = waveB
     fB,fftB = genFFT(waveBX,waveBY)
 
-
     #then find the convolution
     conv = np.conj(fftA)*fftB
 
@@ -1446,7 +1446,7 @@ def phaseFitCorrelate(waveA,waveB):
     fftB = gainAndPhaseToComplex(magB,phaseB)
     waveBY = fftw.irfft(fftB)
 
-    return waveAY,waveBY
+    return waveBY,[slope,yint]
 
 
 def testPhaseFitCorrelate():
@@ -1461,7 +1461,7 @@ def testPhaseFitCorrelate():
     startDiff = waveA[0][0] - waveB[0][0]
 
     #do phaseFitCorrelate()
-    a,b, = phaseFitCorrelate(waveA,waveB)
+    b,fit = phaseFitCorrelate(waveA,waveB)
 
     #plot that
     fig,ax = lab.subplots(3)
@@ -1471,7 +1471,7 @@ def testPhaseFitCorrelate():
     ax[0].legend()
 
     ax[1].set_title("phaseFitCorrelate()")
-    ax[1].plot(waveA[0],a,label="waveA")
+    ax[1].plot(waveA[0],waveA[1],label="waveA")
     ax[1].plot(waveB[0]+startDiff,b,label="waveB")
     ax[1].set_ylabel("Voltage (V)")
     ax[1].legend()
@@ -1491,3 +1491,43 @@ def testPhaseFitCorrelate():
 
     fig.show()
     
+
+
+def fitParameters():
+#    lab.close("all")
+
+    files = glob.glob("waveforms/*avgSurf*")
+    refWave = files[0]
+    waveA = np.loadtxt(refWave).T
+    print "refWave",refWave
+    
+    fig,ax = lab.subplots(4)
+    ax[0].plot(waveA[0],waveA[1],color="red")
+    ax[1].plot(waveA[0],waveA[1],color="red")
+    argmaxA = np.argmax(waveA[1])
+    maxA = waveA[0][argmaxA]
+    slopes = []
+    yints = []
+    for file in files:
+        waveB = np.loadtxt(file).T
+        argmaxB = np.argmax(waveB[1])
+        maxB = waveB[0][argmaxB]
+        diff = maxA-maxB
+        ax[0].plot(waveB[0]+diff,waveB[1])
+        startDiff = waveA[0][0] - waveB[0][0]
+        b,fit = phaseFitCorrelate(waveA,waveB)
+        ax[1].plot(waveB[0]+startDiff,b)
+        slopes.append(fit[0])
+        yints.append(-fit[1])
+
+    yints = np.array(yints)
+    yints %= np.pi*2.
+    yints /= np.pi*2.
+    yints[yints>0.5] -= 1
+    ax[2].hist(slopes,30)
+#    ax[2].set_ylabel("Group Delay (slope, x axis (stupid python))")
+    ax[3].hist(yints,30)
+    ax[3].set_xlabel("Fractional polarity rotation (phase/(2pi))")
+
+    fig.show()
+        
