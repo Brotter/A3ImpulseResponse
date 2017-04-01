@@ -77,6 +77,25 @@ def genLogMag(graphX,graphY):
 
 def calcLogMag(graphF,graphFFT):
     """
+    ONLY calculates the "log magnitude" of whatever you put in, no normalization.
+
+    This is good for gains, since they start normalized to their power ratio
+
+    If you want the spectral magnitude use calcSpecMag
+
+    """
+
+    return 20*np.log10(np.abs(graphFFT))
+
+
+def genSpecMag(graphX,graphY):
+    graphF,graphFFT = genFFT(graphX,graphY)
+    specMag = calcSpecMag(graphF,graphFFT)
+    return graphF,specMag
+    
+
+def calcSpecMag(graphF,graphFFT):
+    """
     Returns Power Spectral Density (dBm/Hz)
     dF is likely in GHz (because thats how I roll) so you need to scale that for this to be dBm/Hz
     This also assumes you're giving it voltage in VOLTS
@@ -364,19 +383,22 @@ def accumulatePhase(phase):
     return phaseOut
 
 
-def regenerateCable(f,fft,dF=5000./512,length=513):
+def regenerateCable(f,fft,dF=5./512,length=513):
     phase = calcPhase(fft)
     mag = calcLinMagFromFFT(fft) 
 
-    newPhase = regenerateCablePhase(f,phase,dF=dF,length=length)
-    newMag = regenerateCableLinMag(f,mag,dF=dF,length=length)
+    outF1,newPhase = regenerateCablePhase(f,phase,dF=dF,length=length)
+    outF2,newMag = regenerateCableLinMag(f,mag,dF=dF,length=length)
+
+    if (outF1 != outF2).all():
+        print "tf.regenerateCable(): Frequency arrays don't match!"
 
     fftNew = gainAndPhaseToComplex(newMag,newPhase)
 
-    return fftNew
+    return outF1,fftNew
 
 
-def regenerateCablePhase(f, phase, dF = 5000. / 512., length = 513):
+def regenerateCablePhase(f, phase, dF = 5. / 512., length = 513):
     """
     A cable has a very flat group delay (Tg(w)), so we should, instead of trying to resample it,
     just regenerate the phase entirely of a cable using the measured phase
@@ -384,7 +406,7 @@ def regenerateCablePhase(f, phase, dF = 5000. / 512., length = 513):
     Also, since I'm doing this for the transfer function most likely, I'm going to set the defaults
     that everything else has:
     time domain: 10GS/S and n=1024
-    freq domain: dF = 5000/512 and length=513
+    freq domain: dF = 5/512 and length=513
     """
 
     #only use the first half for determining the mean, since it gets noisier at the ends 
@@ -394,7 +416,7 @@ def regenerateCablePhase(f, phase, dF = 5000. / 512., length = 513):
     phaseNew = minimizeGroupDelayFromPhase(f, phase)
 
     #now do a spline on that I guess
-    phaseOutInterp = Akima1DInterpolator(f * 1000., phaseNew)
+    phaseOutInterp = Akima1DInterpolator(f, phaseNew)
 
     outF = np.arange(length) * dF
     phaseOut = phaseOutInterp(outF)
@@ -402,10 +424,10 @@ def regenerateCablePhase(f, phase, dF = 5000. / 512., length = 513):
     #out of range it should be zero I guess
     phaseOut = np.nan_to_num(phaseOut)
 
-    return phaseOut
+    return outF,phaseOut
 
 
-def regenerateCableLinMag(f, linMag ,dF = 5000. / 512., length = 513):
+def regenerateCableLinMag(f, linMag ,dF = 5. / 512., length = 513):
     """
     Just like the phase, I need to be able to regenerate the cable linear magnitude.
 
@@ -413,7 +435,7 @@ def regenerateCableLinMag(f, linMag ,dF = 5000. / 512., length = 513):
     offhand and want to be able to determine them
     """
 
-    linMagInterp = Akima1DInterpolator(f*1000.,linMag)
+    linMagInterp = Akima1DInterpolator(f,linMag)
 
     outF = np.arange(length)*dF
     newLinMag = linMagInterp(outF)
@@ -424,7 +446,7 @@ def regenerateCableLinMag(f, linMag ,dF = 5000. / 512., length = 513):
     #out of range it should be zero (nan_to_num does that hooray!)
     newLinMag = np.nan_to_num(newLinMag)
 
-    return newLinMag
+    return outF,newLinMag
 
 
 def complexToGainAndPhase(fft):
@@ -692,9 +714,11 @@ def correlation(graphA,graphB):
     return iXCorr
    
 
-def findPeakCorr(dataA,dataB,xMin=0,xMax=-1):
+def findPeakCorr(dataA,dataB,xMin=0,xMax=-1,roll=0):
     """
-    A wrapper for correlation and fitAndPinpoint basically
+    A wrapper for correlation and fitAndPinpoint basically that allows you to manipulate first?
+
+    SORT OF DUMB!  Use fitAndPinpoint instead
 
     inputs:
     dataA - the first Y data to correlate
@@ -708,8 +732,10 @@ def findPeakCorr(dataA,dataB,xMin=0,xMax=-1):
     peak = just the raw correlation peak
     """
 
-    xCorrY = correlation(dataA,dataB)[xMin:xMax]
+    xCorrY = np.roll(correlation(dataA,dataB),roll)[xMin:xMax]
 
+    print "findPeakCorr",np.argmax(xCorrY)
+    
     params,rSq,peak = fitAndPinpoint(xCorrY)
     max = params[1]
 #    if max > len(xCorrY)/2.:
@@ -718,12 +744,15 @@ def findPeakCorr(dataA,dataB,xMin=0,xMax=-1):
     return max,rSq,peak
 
 
-def findPeakCorrs(data,scopeA=0,scopeB=1,chanA=0,chanB=0,xMin=0,xMax=-1,roll=0):
+def findPeakCorrs_DONTUSE(data,scopeA=0,scopeB=1,chanA=0,chanB=0,xMin=0,xMax=-1,roll=0):
     """
     will eventually be the same as findPeakCorr, except returns it in an array..
 
     this is also oddly specific to the transfer function stuff I was doing so I 
     shouldn't touch it too much until I split it off
+
+    Also is weird and looking back I don't understand it (Apr '17)
+
     """
 
     maxes = []
@@ -776,14 +805,30 @@ def fitAndPinpoint(xCorrY,windowSize=2):
 
     So basically this is just a wrapper for a wrapper to the fit function lol
     whoops
+
+    Okay so also this doesn't work if they already align pretty close and xCorrY has a peak near the edge
+    Gotta roll it and then roll it back I guess
+
     """
     
     #find the absolute peak of the correlation
     peak = np.argmax(xCorrY)
-    #remember that peak = len(xCorrY)/2 is zero!
+    print "fitAndPinpoint(): peak=",peak
+
+    #remember that a peak at len(xCorrY)/2 is "zero" offset!
     peakValue = peak-len(xCorrY)/2
-    #print "peak="+str(peak)
     
+    #if it is near zero (or near len(xCorrY) the windowing isn't going to work)
+    #remember to keep track of this, though the fit gives a fractional offset
+    # so I just have to not change the peakValue (which is the "center" of the fit sort of)
+    if peak<windowSize:
+        xCorrY = np.roll(xCorrY,windowSize)
+        peak += windowSize
+    if peak>=len(xCorrY)-windowSize:
+        xCorrY = np.roll(xCorrY,-windowSize)
+        peak -= windowSize
+    
+
     #We need a guess!
     guessA = 2 #sure why not, it might be like 2 points wide
     guessB = 0 #should be centered at zero (because of the windowing)
@@ -796,6 +841,8 @@ def fitAndPinpoint(xCorrY,windowSize=2):
     windowY = xCorrY[peak-windowSize:peak+windowSize+1]
     windowX = np.arange(-windowSize,windowSize+1)
 
+    print "fitAndPinpoint ",len(windowY),len(windowX)
+
     #actually do the fit
     params,rSq = mf.fitGaussian(windowX,windowY,[guessA,guessB,guessC,guessD])
 
@@ -804,7 +851,11 @@ def fitAndPinpoint(xCorrY,windowSize=2):
     upsampleX = np.arange(-windowSize * 10, windowSize * 10 + 0.01, 0.01)
 #    print "max="+str(params[1])+" peak="+str(peakValue)
 
-    #Now the params you are returning are
+
+    #Now the params you are returning are:
+    print "peak=",peak," peakValue=",peakValue," fitPeak=",params[1]
+
+
     
     return params,rSq,peakValue
 
@@ -858,6 +909,19 @@ def resampleAtOffset(yData,offset):
     return yNew
 
 
+def correlateAndAverageDict(events,makePlots=False):
+    """
+    correlateAndAverage() doesn't work if it is a dict (which it usually is), so this just converts it
+    """
+
+    newEvents = []
+    for key in events:
+        event = events[key]
+        newEvents.append(np.array([event[0],event[1]]))
+
+    return correlateAndAverage(newEvents,makePlots=makePlots)
+
+
 def correlateAndAverage(events,makePlots=False):
     """
     Takes a bunch of events that you've already imported a bunch of and
@@ -865,16 +929,16 @@ def correlateAndAverage(events,makePlots=False):
     """
 
     avgEvent = [[],[]]
-    currEvent = [[],[]]
     numEvents = len(events)
     firstFlag = True
     eventsCopy = copy.deepcopy(events)
+
     for currEvent in eventsCopy:
         if firstFlag == True:
             #print "lets DO THIS THING"
             #print "copying over first event"
-            avgEvent[0] = currEvent[0][:]
-            avgEvent[1] = currEvent[1][:]/numEvents
+            avgEvent[0] = currEvent[0]
+            avgEvent[1] = currEvent[1]/numEvents
             firstFlag = False
         else:
             max,rSq,peak = findPeakCorr(currEvent[1],avgEvent[1])
@@ -906,6 +970,25 @@ def correlateAndAverage(events,makePlots=False):
         currEvent = [[],[]]
     
     return avgEvent[0],avgEvent[1]
+
+
+
+def shiftToAlign(waveA,waveB):
+    #developed to align things at the end, probably better than the older versions that do the same thing
+    #I do this all the time so it needed a function
+
+    waveAx,waveAy = waveA
+    waveBx,waveBy = waveB
+
+    corr = correlation(waveAy,waveBy)
+    params,rSq,peak = fitAndPinpoint(corr)
+    print "shiftToAlign():",len(waveBy)," ",peak
+    resampledBy = resampleAtOffset(waveBy,params[1])
+    shiftedBy = np.roll(resampledBy,len(resampledBy)/2-peak)
+
+    
+    return waveBx,shiftedBy
+    
 
 
 def CheckParseval(dT,):
@@ -1413,7 +1496,7 @@ def exampleMinimizePlot():
 
 
 
-def phaseFitCorrelate(waveA,waveB):
+def phaseFitCorrelate(waveA,waveB,noPhase=False):
     #tries to determine the correlation (and returns two "correlated" graphs) by convolving and fitting the phase
     
 
@@ -1434,6 +1517,9 @@ def phaseFitCorrelate(waveA,waveB):
     phaseFit = mf.weightedLeastSqrs(fB,convP,convM)
     slope = phaseFit[0]
     yint = phaseFit[1]
+    if noPhase:
+        yint = 0
+
 
     #now find the unwrapped phase of the waveform you want to shift
     magB,phaseB = complexToGainAndPhase(fftB)

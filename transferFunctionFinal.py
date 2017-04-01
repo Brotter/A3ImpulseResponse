@@ -213,7 +213,7 @@ def importSurf(chan):
     fileName = waveformDir + str(chan) + "_avgSurfWaveform.txt"
     dataX,dataY = np.loadtxt(fileName).T
     
-    dataY /= 1000 #mv->V
+#    dataY /= 1000 #mv->V  #not mV!  It is in ADC counts so I shouldn't touch this...
 
     #make the time range start at zero
     dataX -= dataX[0]
@@ -240,20 +240,9 @@ def importScope(chan):
     return dataX, dataY, dataF, dataFFT
 
 
-def getRegeneratedCables(fileName,dF=5000./512.,length=513):
-
-    cableFreq,cableFFT = getCables(fileName)
-
-    cableNewFreq = np.arange(0,length)*dF
-
-    cableNewFFT = tf.regenerateCable(cableFreq,cableFFT,dF=dF,length=length)
-    
-    return cableNewFreq, cableNewFFT
-
-
-def getCables(fileName):
+def getRegeneratedCables(fileName,dF=5./512.,length=513):
     """
-    New getCables():
+    New getRegeneratedCables():
 
     imports the data (correctly with the s2pParser fix), then resamples the gain and phase
     to meet the specified dF and length (which should stay constant because the time domain I choose defines
@@ -267,7 +256,31 @@ def getCables(fileName):
 
     """
 
-    cableFreq,cableGainLin,cablePhase = s2pParser(cablesBaseDir + fileName)
+    cableFreq,cableFFT = getCables(fileName)
+
+    cableNewFreq,cableNewFFT = tf.regenerateCable(cableFreq,cableFFT,dF=dF,length=length)
+    
+
+    print "getRegeneratedCables(): dFin=:",cableFreq[1]-cableFreq[0]
+    print "getRegeneratedCables(): dFout=:",cableNewFreq[1]-cableNewFreq[0]
+    print "getRegeneratedCables(): len(f)in=:",len(cableFreq)
+    print "getRegeneratedCables(): len(f)out:",len(cableNewFreq)
+
+
+
+    return cableNewFreq, cableNewFFT
+
+
+def getCables(fileName):
+    """
+    basically just import the cables.
+    
+    also transforms it from measured log magnitude to linear magnitude
+
+    """
+    cableFreq,cableGainLog,cablePhase = s2pParser(cablesBaseDir + fileName)
+    cableGainLin = 10.**(cableGainLog/20.)
+
     cableFFT = tf.gainAndPhaseToComplex(cableGainLin,cablePhase)
 
     return cableFreq,cableFFT
@@ -355,7 +368,7 @@ def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
 def s2pParser(fileName):
 
     freq = []
-    gainLin = []
+    gainLog = []
     phase = []
     with open(fileName) as inFile:
         for line in inFile:
@@ -363,15 +376,11 @@ def s2pParser(fileName):
                 split = line.split()
                 freq.append(float(split[0])/1e9)
                 phase.append(float(split[4])*(np.pi/180.))
-                gainLin.append(10**(float(split[3])/20.))
+#                gainLin.append(10.**(float(split[3])/10.))
+                gainLog.append(split[3])
+               
                 
-#    fig,ax = lab.subplots(2,sharex=True)
-#    ax[0].plot(phase)
-#    phase = tf.unwrapPhase(phase)
-#    ax[1].plot(phase)
-#    fig.show()
-                
-    return np.array(freq),np.array(gainLin),np.array(phase)
+    return np.array(freq),np.array(gainLog,dtype=float),np.array(phase)
 
 
 #==============================================================================
@@ -469,7 +478,7 @@ def processWaveform(graphT,graphV,source):
         kHanningWindow = False
         kPostZeroMean  = False
 
-    print "---->Starting processWaveform() on " + source
+    print "processWaveform(): Starting on " + source
 
     #print out what you got in initially
     print "Initial: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
@@ -549,6 +558,9 @@ P2AF = False
 P2AFFT = False
 
 def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
+    if savePlots or showPlots:
+        lab.close("all")
+
     #phase shifts are likely pointless!
     #they were: scopeFFT=1.26
     #           phaseShift=1.698
@@ -559,112 +571,154 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
     scopeRawX,scopeRawY,scopeRawF,scopeRawFFT = importScope(chan)
     scopeX,scopeY = processWaveform(scopeRawX,scopeRawY,"calScope")
     scopeF,scopeFFT = tf.genFFT(scopeX,scopeY)
-
-    if savePlots or showPlots:
-        fig,ax = lab.subplots(2,figsize=(11,8.5))
-        ax[0].set_title("Raw Signal Chain Calibration Pulser")
-        ax[0].plot(scopeRawX,scopeRawY,label="raw scope pulse")
-        ax[0].plot(scopeX,scopeY,label="processed scope pulse")
-        ax[0].set_xlabel("Time (ns)")
-        ax[0].set_xlim([0,200])
-        ax[0].set_ylabel("Voltage (V)")
-        ax[0].legend()
-        ax[1].plot(scopeRawF,tf.calcLogMag(scopeRawF,scopeRawFFT),label="raw scope pulse")
-        ax[1].plot(scopeF,tf.calcLogMag(scopeF,scopeFFT),label="processed scope pulse")
-        ax[1].set_xlabel("Frequency (GHz)")
-        ax[1].set_ylabel("Spectral Power (dBm/Hz)")
-        ax[1].set_ylim([-70,-20])
-        ax[1].set_xlim([0,4])
-        ax[1].legend()
-        if savePlots:
-            fig.savefig("plots/doSigChainWithCables_Input"+chan+".png")
-        if showPlots:
-            fig.show()
             
     #1.26 is the max coherance phase?
 #    scopeFFT = tf.fftPhaseShift(scopeFFT,1.26)
 
     #Get the cable's H(f) transfer function for PULSER TO SCOPE
-    global P2SF
-    global P2SFFT
-    if type(P2SF) != np.ndarray:
-        print "Getting Pulser to Scope Cables..."
-#        P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
-        P2SF,P2SFFT= getRegeneratedCables("A-B_PULSER-SCOPE.s2p")
-    P2SX,P2SY = tf.genTimeSeries(P2SF,P2SFFT)
+#    global cableScopeF #once upon a time regenerating the cables took awhile
+#    global cableScopeFFT
+#    if type(cableScopeF) != np.ndarray:
+    print "Getting Pulser to Scope Cables..."
+#        cableScopeF,cableScopeFFT= getCables\\\\\\\("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
+    cableScopeRawF,cableScopeRawG,cableScopeRawP = s2pParser(cablesBaseDir+"A-B_PULSER-SCOPE.s2p")
+    cableScopeF,cableScopeFFT= getRegeneratedCables("A-B_PULSER-SCOPE.s2p")
+    cableScopeX,cableScopeY = tf.genTimeSeries(cableScopeF,cableScopeFFT)
 
     #Get the cable's H(f) transfer function for PULSER TO AMPA
-    global P2AF
-    global P2AFFT
-    if type(P2AF) != np.ndarray:
-        print "Getting Pulser to Ampa Cables..."
+#    global P2AF
+#    global P2AFFT
+#    if type(P2AF) != np.ndarray:
+    print "Getting Pulser to Ampa Cables..."
 #        P2AF,P2AFFT= getCables("A-C_PULSER-TEST_66DB.s2p",tZero=True,hanning=True,resample="fftFit")
-        P2AF,P2AFFT= getRegeneratedCables("A-B_PULSER-TEST_0DB.s2p")
-    P2AX,P2AY = tf.genTimeSeries(P2AF,P2AFFT)
+    cableAmpaFile = "A-C_PULSER-TEST_56DB.s2p"
+    cableAmpaRawF,cableAmpaRawG,cableAmpaRawP = s2pParser(cablesBaseDir+cableAmpaFile)
+    cableAmpaF,cableAmpaFFT= getRegeneratedCables(cableAmpaFile)
+    cableAmpaX,cableAmpaY = tf.genTimeSeries(cableAmpaF,cableAmpaFFT)
 
     #PULSER TO SCOPE
     #deconvolve cable pulse * cable = scope -> pulse = scope/cable
     #finds just the pulser impulse
-    pulseDeconvFFT = scopeFFT/P2SFFT
+    pulseDeconvFFT = scopeFFT/cableScopeFFT
 
     #PULSER TO AMPA
     #convolve it with that transfer function to get pulse at AMPA
-    ampaInputFFT = P2AFFT*pulseDeconvFFT
+    ampaInputFFT = cableAmpaFFT*pulseDeconvFFT
     ampaInputFFT = np.nan_to_num(ampaInputFFT)
     ampaInputF = scopeF
     ampaInputX,ampaInputY = tf.genTimeSeries(ampaInputF,ampaInputFFT)
+    ampaInputY = tf.hanningTail(ampaInputY,512,10)
+
+
 
     if (showPlots or savePlots) and (chan == "01BH"):
         
-        fig2,ax2 = lab.subplots(3,figsize=(11,8.5))
-        ax2[0].set_title("Cables")
-        ax2[0].set_ylabel("phase (radians)")
-        ax2[0].plot(P2AF,tf.calcPhase(P2AFFT),label="Pulser To Ampa")
-        ax2[0].plot(P2SF,tf.calcPhase(P2SFFT),label="Pulser To Scope")
-        ax2[0].legend()
-        
-        ax2[1].set_ylabel("gain (dB)")
-        ax2[1].set_xlabel("freq (GHZ)")
-        ax2[1].plot(P2AF,tf.calcLogMag(P2AF/1000.,P2AFFT),label="Pulser To Ampa")
-        ax2[1].plot(P2SF,tf.calcLogMag(P2SF/1000.,P2SFFT),label="Pulser To Scope")
-        ax2[1].set_ylim([-90,-50])
-        ax2[1].legend()
+        fig2,ax2 = lab.subplots(3,2,figsize=(11,8.5))
+        ax2[0][0].set_title("Cables")
 
-        ax2[2].set_xlabel("Time (ns)")
-        ax2[2].set_ylabel("Voltage (V)")
-        ax2[2].plot(ampaInputX,ampaInputY,label="Pulse into AMPA")
-        ax2[2].plot(P2AX,P2AY,label="Cable: Pulser to AMPA")
-        ax2[2].plot(P2SX,P2SY,label="Cable: Pulser to Scope")
-        ax2[2].set_xlim([0,30])
-        ax2[2].legend()
+
+        #phase
+        ax2[0][0].set_ylabel("phase (radians)")
+        ax2[0][0].plot(cableScopeRawF,np.unwrap(cableScopeRawP),label="Pulser To Scope Raw",color="green")
+        ax2[0][0].plot(cableScopeF,tf.calcPhase(cableScopeFFT),label="Pulser To Scope Processed",color="blue")
+        ax2[0][0].legend()
+
+        ax2[0][1].set_ylabel("phase (radians)")
+        ax2[0][1].plot(cableAmpaRawF,np.unwrap(cableAmpaRawP),label="Pulser To Ampa Raw",color="green")
+        ax2[0][1].plot(cableAmpaF,tf.calcPhase(cableAmpaFFT),label="Pulser To Ampa Processed",color="red")
+        ax2[0][1].legend()
+        
+        #gain
+        ax2[1][0].set_ylabel("gain (dB)")
+        ax2[1][0].set_xlabel("freq (GHZ)")
+        ax2[1][0].plot(cableScopeRawF,cableScopeRawG,label="Pulser To Scope Raw",color="green")
+        ax2[1][0].plot(cableScopeF,tf.calcLogMag(cableScopeF,cableScopeFFT),label="Pulser To Scope Processed",color="blue")
+        ax2[1][0].set_ylim([-100,0])
+        ax2[1][0].legend()
+
+        ax2[1][1].set_ylabel("gain (dB)")
+        ax2[1][1].set_xlabel("freq (GHZ)")
+        ax2[1][1].plot(cableAmpaRawF,cableAmpaRawG,label="Pulser To Ampa Raw",color="green")
+        ax2[1][1].plot(cableAmpaF,tf.calcLogMag(cableAmpaF,cableAmpaFFT),label="Pulser To Ampa",color="red")
+        ax2[1][1].set_ylim([-100,0])
+        ax2[1][1].legend()
+
+        #impulse
+
+        ax2[2][0].set_xlabel("Time (ns)")
+        ax2[2][0].set_ylabel("Voltage (V)")
+        ax2[2][0].plot(cableScopeX,cableScopeY,label="Cable: Pulser to Scope",color="blue")
+        ax2[2][0].plot(cableAmpaX,cableAmpaY,label="Cable: Pulser to AMPA",color="red")
+        ax2[2][0].legend()
+
+        ax2[2][1].set_xlabel("Time (ns)")
+        ax2[2][1].plot(ampaInputX,ampaInputY,label="Corrected Pulse into AMPA",color="purple")
+#        ax2[0][2].set_xlim([0,30])
+        ax2[2][1].legend()
 
         if showPlots:
             fig2.show()
         if savePlots:
             fig2.savefig("plots/doSigChainWithCables_Cables.png")
             
+
+
+
+    if savePlots or showPlots:
+        fig,ax = lab.subplots(2,figsize=(11,8.5))
+        ax[0].set_title("Raw Signal Chain Calibration Pulser")
+        ax[0].plot(scopeRawX,scopeRawY,label="raw scope pulse")
+        ax[0].plot(scopeX,scopeY,label="processed scope pulse")
+        ax0 = ax[0].twinx()
+        ax0.plot(ampaInputX,ampaInputY,label="cable corrected pulse into ampa",color="purple")
+        ax0.legend()
+        ax0.set_ylabel("Voltage(V)")
+        ax[0].set_xlabel("Time (ns)")
+        ax[0].set_xlim([0,200])
+        ax[0].set_ylabel("Voltage (V)")
+        ax[0].legend(loc="upper left")
+        ax[1].plot(scopeRawF,tf.calcSpecMag(scopeRawF,scopeRawFFT),label="raw scope pulse")
+        ax[1].plot(scopeF,tf.calcSpecMag(scopeF,scopeFFT),label="processed scope pulse")
+        ax[1].plot(ampaInputF,tf.calcSpecMag(ampaInputF,ampaInputFFT),label="cable corrected pulse into ampa",color="purple")
+        ax[1].set_xlabel("Frequency (GHz)")
+        ax[1].set_ylabel("Spectral Power (dBm/Hz)")
+#        ax[1].set_ylim([-70,-20])
+        ax[1].set_xlim([0,4])
+        ax[1].legend()
+        if savePlots:
+            fig.savefig("plots/doSigChainWithCables_Input"+chan+".png")
+        if showPlots:
+            fig.show()
+
+
+
+
     #get the surf (extracted from ROOT data from another script)
     surfRawX,surfRawY,surfRawF,surfRawFFT = importSurf(chan)
+    print " /|\ /|\ /|\ /|\ ",len(surfRawX),np.diff(surfRawX)[0]
     surfX,surfY = processWaveform(surfRawX,surfRawY,"surf")
+    print " /|\ /|\ /|\ /|\ ",len(surfX),np.diff(surfX)[0]
 
+    surfY *= (1./1000) #lets go to V for a sec
     surfF,surfFFT = tf.genFFT(surfX,surfY)
 
 
 
     if savePlots or showPlots:
         figS,axS = lab.subplots(2,figsize=(11,8.5))
-        axS[0].set_title("Upsampled, correlated, and averaged SURF output")
+        axS[0].set_title("Upsampled, correlated, and averaged SURF output ("+chan+")")
         max = np.argmax(surfRawY)
-        axS[0].set_title(chan)
-        axS[0].plot(surfRawX,np.roll(surfRawY,100-max),label=chan)
+        axS[0].plot(surfRawX,np.roll(surfRawY,100-max),label="Raw Surf Waveform")
+        axS[0].plot(surfX,np.roll(surfY,100-max),'+',label="Processed Surf Waveform")
         axS[0].set_xlabel("Time (ns)")
-        axS[0].set_ylabel("Voltage (V)")
-        axS[0].set_ylim([-0.2,0.2])
+        axS[0].set_ylabel("ADC counts")
+#        axS[0].set_ylim([-0.2,0.2])
         axS[0].legend()
-        axS[1].plot(surfRawF,tf.calcLogMag(surfRawF,surfRawFFT),label=chan)
+        axS[1].plot(surfRawF,tf.calcSpecMag(surfRawF,surfRawFFT),label="Raw Surf Waveform")
+        axS[1].plot(surfF,tf.calcSpecMag(surfF,surfFFT),'+',label="Raw Surf Waveform")
         axS[1].set_xlabel("Frequency (GHz)")
-        axS[1].set_ylabel("Spectral Power (dBm/Hz)")
-        axS[1].set_ylim([-110,-40])
+        axS[1].set_ylabel("\"Spectral Power\" (~dBm/Hz)")
+#        axS[1].set_ylim([-110,0])
         axS[1].set_xlim([0,3])
         axS[1].legend()
         if savePlots:
@@ -673,6 +727,8 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
             figS.show()
 
 
+    print "*************",len(surfF),":",np.diff(surfF)[0],len(ampaInputF),":",np.diff(ampaInputF)[0]
+    print "*************",len(surfFFT),len(ampaInputFFT)
 
     #deconvolve signal chain transfer function out of that!
     tfFFT = surfFFT/ampaInputFFT
@@ -688,25 +744,35 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
     if showPlots or savePlots:
         fig3,ax3 = lab.subplots(2,figsize=(11,8.5))
 
-        ax3[0].plot(ampaInputX,ampaInputY,label="Input Pulse, Cables Removed",color="red")
+        ax30 = ax3[0].twinx()
+        ax30.plot(ampaInputX,ampaInputY,label="Input Pulse, Cables Removed",color="red")
+        ax30.grid()
+        ax30.set_ylabel("Voltage (V)")
+        ax30.legend()
         surfRawYMax = np.argmax(surfRawY)
         ax3[0].plot(surfRawX,np.roll(surfRawY,200-surfRawYMax),label="raw SURF waveform",color="blue")
         tfYMax = np.argmax(tfY)
         ax3[0].plot(tfX,np.roll(tfY,100-tfYMax),label="Signal Chain Transfer Function",color="black")
-        ax3[0].set_ylabel("Voltage (V)")
+        ax3[0].set_ylabel("ADC counts")
         ax3[0].set_xlabel("time (ns)")
-        ax3[0].set_ylim([-0.1,0.4])
+#        ax3[0].set_ylim([-0.1,0.4])
 #        ax3[0].set_xlim([20,80])
-        ax3[0].legend()
+        ax3[0].legend(loc="upper left")
 
-        ax3[1].set_ylabel("Power (dB)")
+        ax3[1].set_ylabel("Spectral Power Magnitude (dBm/Hz)")
         ax3[1].set_xlabel("Frequency (GHz)")
-        ax3[1].plot(ampaInputF,tf.calcLogMag(ampaInputF,ampaInputFFT),label="processed SURF waveform",color="red")
-        ax3[1].plot(surfRawF,tf.calcLogMag(surfRawF,surfRawFFT),label="raw SURF waveform",color="blue")
-        ax3[1].plot(surfF,tf.calcLogMag(surfF,tfFFT),label="Signal Chain Transfer Function",color="black")
-        ax3[1].set_ylim([-100,-50])
+        ax3[1].plot(ampaInputF,tf.calcSpecMag(ampaInputF,ampaInputFFT),label="Input Pulse, Cables Removed",color="red")
+        ax3[1].plot(surfRawF,tf.calcSpecMag(surfRawF,surfRawFFT),label="raw SURF waveform",color="blue")
+        ax3[1].legend(loc="upper left")        
+        ax3[1].set_ylim([-150,20])
+        ax31 = ax3[1].twinx()
+        ax31.set_ylabel("Gain (dB)")
+        ax31.plot(surfF,tf.calcLogMag(surfF,tfFFT),label="Signal Chain Transfer Function",color="black")
+        ax31.legend()
+#        ax31.set_ylim([90,120])
+ #       ax3[1].set_ylim([-100,-50])
         ax3[1].set_xlim([0,3])
-        ax3[1].legend()
+
 
         if showPlots:
             fig3.show()
@@ -729,7 +795,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
         writeOne([surfX,tfY],chan,"sigChain")
 
 
-    return surfX,tfY,surfF,tfFFT 
+    return tfX,tfY,surfF,tfFFT 
 
 
 def doRoofAntWithCables():
@@ -780,7 +846,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     inX = inX[:1024]
     inY = inY[:1024]
     inF,inFFT = tf.genFFT(inX,inY)
-    inFFT = tf.minimizeGroupDelayFromFFT(inF,inFFT)
+#    inFFT = tf.minimizeGroupDelayFromFFT(inF,inFFT)
 
 
 
@@ -791,7 +857,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     outX = outX[:1024]
     outY = outY[:1024]
     outF,outFFT = tf.genFFT(outX,outY)
-    outFFT = tf.minimizeGroupDelayFromFFT(outF,outFFT)
+#    outFFT = tf.minimizeGroupDelayFromFFT(outF,outFFT)
 
     if savePlots or showPlots:
         fig0,ax0 = lab.subplots(3,2)
@@ -866,6 +932,11 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
     #remove all the stupid power above 1.3GHz since ANITA can't measure it
     antTFY = tf.nyquistLimit(antTFY,5)
+
+    #10BH is upside down?
+    if chan == "10BH":
+        antTFY *= -1
+
 
     antTFFFT = tf.fftw.rfft(antTFY)
 
@@ -1072,9 +1143,75 @@ def doTheWholeShebang(savePlots=False,showPlots=False,writeFiles=False):
             allChans[chan] = doSigChainAndAntenna(chan,savePlots=savePlots,showPlots=showPlots,writeFiles=writeFiles)
         except:
             print chan+" FAILED"
-    
 
     return allChans
+
+
+def alignWaveforms(allChans,showPlots=False):
+    
+    #They need to all be aligned and have the same group delay!
+    #I try two ways:
+    #1) use shiftToAlign, which does the weird fourier linear regression that messes with the phase
+    #2) (THE DEFAULT) fit a gaussian to the peak of the correlation plot and use that as the fractional offset, then resample
+
+
+    outChans = {}
+    desiredDelay = 40
+    max = np.argmax(allChans["01BH"][1])
+    outChans["01BH"] = allChans["01BH"][0],np.roll(allChans["01BH"][1],max-desiredDelay)
+    for chan in allChans:
+        if chan == "01BH":
+            continue
+        outChans[chan] = allChans[chan][0],tf.phaseFitCorrelate(outChans["01BH"],allChans[chan])[0];
+
+
+    outChans2 = {}
+    for chan in allChans:
+        print chan
+        outChans2[chan] = tf.shiftToAlign(allChans["01BH"],allChans[chan])
+
+
+    correlations = {}
+    for chan in allChans:
+        correlations[chan] = tf.correlation(outChans["01BH"][1],allChans[chan][1])
+
+
+
+    if showPlots:
+        highWeird = []
+        lowWeird = []
+
+        fig,ax = lab.subplots(4)
+        for chan in allChans:
+            ax[0].text(0.65, 0.9, "Unaligned", transform=ax[0].transAxes, fontsize=14)
+            ax[0].plot(allChans[chan][0],allChans[chan][1])
+            
+
+            ax[1].text(0.65, 0.9, "linear regression phase subtraction", transform=ax[1].transAxes, fontsize=14)
+            ax[1].plot(outChans[chan][0],outChans[chan][1])
+                
+            ax[2].text(0.65, 0.9, "fit correlation peak fractional offset", transform=ax[2].transAxes, fontsize=14)
+            ax[2].plot(outChans2[chan][0],outChans2[chan][1])
+            if outChans2[chan][1][552] > 0.03:
+                highWeird.append(chan)
+            else:
+                lowWeird.append(chan)
+
+            ax[3].text(0.65, 0.9,"Correlation with 01BH" , transform=ax[3].transAxes, fontsize=14)
+            ax[3].plot(correlations[chan])
+
+
+    
+        highWeird.sort()
+        lowWeird.sort()
+        print len(highWeird),highWeird
+        print len(lowWeird),lowWeird
+
+        fig.show()
+
+    return outChans2
+
+
 
 
 def doAllSigChains(savePlots=False,showPlots=False):
@@ -1083,7 +1220,7 @@ def doAllSigChains(savePlots=False,showPlots=False):
     allChans = {}
     for chan in chans:
         try:
-            allChans[chan] = doSigChainWithCables(chan,savePlots=savePlots,showPlots=showPlots)
+            allChans[chan] = doSigChainWithCables(chan,savePlots=savePlots,showPlots=showPlots)[:2]
         except:
             print chan+" FAILED************************************************"
 
@@ -1096,7 +1233,7 @@ def doAllAntennas():
     allChans = {}
     for chan in chans:
         try:
-            allChans[chan] = doPalAnt(chan)
+            allChans[chan] = doPalAnt(chan)[:2]
         except:
             print chan+" FAILED************************************************"
 
@@ -1234,7 +1371,7 @@ def saveAllNicePlots(allChans):
         fig.savefig("autoPlots/"+chan+".png")
 
 
-def plotCompare(allChans):
+def plotCompare(allChans,savePlots=False):
     """
       Plot a comparison of all the channels in a way that is sort of easy to see
       Also has a good way to exclude channels that you think are "bad" (so you
@@ -1243,11 +1380,17 @@ def plotCompare(allChans):
 
 #    lab.close("all")
 
-    figV,axV = lab.subplots(3,sharex=True)
-    figH,axH = lab.subplots(3,sharex=True)
+    figV,axV = lab.subplots(3,sharex=True,figsize=[11,8.5])
+    figH,axH = lab.subplots(3,sharex=True,figsize=[11,8.5])
 
-    figFFTH,axFFTH = lab.subplots(1,3,sharex=True)
-    figFFTV,axFFTV = lab.subplots(1,3,sharex=True)
+    figFFTH,axFFTH = lab.subplots(3,sharex=True,figsize=[11,8.5])
+    figFFTV,axFFTV = lab.subplots(3,sharex=True,figsize=[11,8.5])
+
+    axFFTH[2].set_xlabel("Frequency (GHz)")
+    axFFTH[1].set_ylabel("Gain (dB)")
+
+    axFFTV[2].set_xlabel("Frequency (GHz)")
+    axFFTV[1].set_ylabel("Gain (dB)")
 
     try:
         sns.set_palette("viridis", n_colors=16)
@@ -1276,15 +1419,20 @@ def plotCompare(allChans):
         waveY = allChans[chan][1]
         
         #make them start at the beginning
-        argMax = np.argmax(waveY)
-        waveY = np.roll(waveY,-argMax+100)
 
-        f,logMag = tf.genLogMag(waveX,waveY)
+        #get them to overlay
+#        argMax = np.argmax(waveY)
+        argMax = np.argmax(tf.correlation(allChans["01BH"][1],allChans[chan][1]))
+#        print argMax
+        if chan!="01BH":
+            waveY = np.roll(waveY,-argMax)
+            
+        f,fft = tf.genFFT(waveX,waveY)
+        logMag = 10*np.log10(np.abs(fft)**2)
         
 #        if any(x for x in badChans if chan in x):
 #            continue
 
-        argMax = np.argmax(allChans[chan][1])
         lenWave = len(allChans[chan][0])
 
         if  (chan[2] == "T"):
@@ -1299,12 +1447,12 @@ def plotCompare(allChans):
                 axFFTV[axIndex].plot(f,logMag,label=chan[:2])
 
         elif (chan[3] == "H"):
-            if (chan[:2] == "13" and axIndex==2):
-                axH[axIndex].plot(waveX,waveY,label=chan[:2],color="red",lw=2)
-                axFFTH[axIndex].plot(f,logMag,label=chan[:2],color="red",lw=2)
-            else:
-                axH[axIndex].plot(waveX,waveY,label=chan[:2])
-                axFFTH[axIndex].plot(f,logMag,label=chan[:2])
+#            if (chan[:2] == "13" and axIndex==2):
+#                axH[axIndex].plot(waveX,waveY,label=chan[:2],color="red",lw=2)
+#                axFFTH[axIndex].plot(f,logMag,label=chan[:2],color="red",lw=2)
+#            else:
+            axH[axIndex].plot(waveX,waveY,label=chan[:2])
+            axFFTH[axIndex].plot(f,logMag,label=chan[:2])
 
     #labels and making it look pretty!
     
@@ -1328,17 +1476,27 @@ def plotCompare(allChans):
     axFFTV[0].set_xlim([0,2])
     axFFTH[0].set_xlim([0,2])
 
-    axV[0].legend(bbox_to_anchor=(1.1, 1.05))
-    axH[0].legend(bbox_to_anchor=(1.1, 1.05))
+    for i in range(0,3):
+        axFFTV[i].set_ylim([15,70])
+        axFFTH[i].set_ylim([15,70])
 
-    axFFTV[0].legend(bbox_to_anchor=(1.1, 1.05))
-    axFFTH[0].legend(bbox_to_anchor=(1.1, 1.05))
+    axV[2].legend(bbox_to_anchor=(1.1, 1.05))
+    axH[2].legend(bbox_to_anchor=(1.1, 1.05))
 
+    axFFTV[0].legend(frameon=True,ncol=2)
+    axFFTH[0].legend(frameon=True,ncol=2)
 
     figV.show()
     figH.show()
     figFFTV.show()
     figFFTH.show()
+
+    if savePlots:
+        figV.savefig("plotCompare_timeV.png")
+        figH.savefig("plotCompare_timeH.png")
+        figFFTV.savefig("plotCompare_fftV.png")
+        figFFTH.savefig("plotCompare_fftH.png")
+
                 
     return
 
@@ -1478,17 +1636,14 @@ def calibrationPulseSignal(chan):
     #Get the cable's (H(f) transfer function for pulser to scope)
     #The 17 (for the "center") is from tf.compPhaseShifts3(), which makes a nice film of where the 
     # phase center is
-    global P2SF
-    global P2SFFT
-    if type(P2SF) != np.ndarray:
-        print "Getting Pulser to Scope Cables..."
-        P2SF,P2SFFT= getCables("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
+    print "Getting Pulser to Scope Cables..."
+    cableScopeF,cableScopeFFT= getCables("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
 
     #deconvolve cable pulse * cable = scope -> pulse = scope/cable
     #finds just the pulser impulse
-    pulseDeconvFFT = scopeFFT/P2SFFT
+    pulseDeconvFFT = scopeFFT/cableScopeFFT
 
-    return P2SF, pulseDeconvFFT
+    return cableScopeF, pulseDeconvFFT
 
 
 def weinerDeconv(sigInX, sigInY, chan):
@@ -1661,4 +1816,54 @@ def compPhase(allChans):
 
     fig.show()
 
-        
+
+
+
+
+
+def plotSavedFiles(baseName="avgSurfWaveform",dir="waveforms_new"):
+    #Just plots the saved waveforms against each other overlayed
+
+    sns.set_palette(sns.color_palette("husl",16))
+
+    fig,ax = lab.subplots(2,3,sharex=True)
+
+    files = glob(dir+"/*"+baseName+"*")
+
+
+    allChans = {}
+
+    for file in files:
+        name = file.split("/")[1].split("_")[1].split(".")[0]
+        print name
+        data = np.loadtxt(file).T
+        allChans[name] = data
+        if name[-1] == "H":
+            if name[-2] == "T":
+                ax[0][0].plot(data[0],data[1],label=name[:2])
+            if name[-2] == "M":
+                ax[0][1].plot(data[0],data[1],label=name[:2])
+            if name[-2] == "B":
+                ax[0][2].plot(data[0],data[1],label=name[:2])
+        else:
+
+            if name[-2] == "T":
+                ax[1][0].plot(data[0],data[1],label=name[:2])
+            if name[-2] == "M":
+                ax[1][1].plot(data[0],data[1],label=name[:2])
+            if name[-2] == "B":
+                ax[1][2].plot(data[0],data[1],label=name[:2])
+
+    ax[0][0].set_title("H Top")
+    ax[0][1].set_title("H Middle")
+    ax[0][2].set_title("H Bottom")
+    ax[1][0].set_title("V Top")
+    ax[1][1].set_title("V Middle")
+    ax[1][2].set_title("V Bottom")
+
+
+    ax[0][2].legend(bbox_to_anchor=(1.1, 1.05))
+
+    fig.show()
+
+    return allChans

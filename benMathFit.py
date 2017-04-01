@@ -40,41 +40,41 @@ lambdaDecay    = lambda p, x: p[0]*np.exp(-x/p[1])
 
 
 def fitLin(aDataX,aDataY,pGuess):
-    return fitFunc(aDataX,aDataY,lambdaLin,pGuess)
+    return fitFunction(aDataX,aDataY,lambdaLin,pGuess)
 
 def fitExpo(aDataX,aDataY,pGuess):
-    return fitFunc(aDataX,aDataY,lambdaExpo,pGuess)
+    return fitFunction(aDataX,aDataY,lambdaExpo,pGuess)
 
 def fitRayleigh(aDataX,aDataY,pGuess):
-    return fitFunc(aDataX,aDataY,lambdaRayleigh,pGuess)
+    return fitFunction(aDataX,aDataY,lambdaRayleigh,pGuess)
 
 def fitMaxBoltz(aDataX,aDataY,pGuess):
-    return fitFunc(aDataX,aDataY,lambdaMaxBoltz,pGuess)
+    return fitFunction(aDataX,aDataY,lambdaMaxBoltz,pGuess)
 
 def fitGaussian(aDataX,aDataY,pGuess): #4
-    return fitFunc(aDataX,aDataY,lambdaGaussian,pGuess)
+    return fitFunction(aDataX,aDataY,lambdaGaussian,pGuess)
 
 def fitNormal(aDataX,aDataY,pGuess): #3
-    return fitFunc(aDataX,aDataY,lambdaNormal,pGuess)
+    return fitFunction(aDataX,aDataY,lambdaNormal,pGuess)
 
 def fitSin(aDataX,aDataY,pGuess):
-    return fitFunc(np.array(aDataX),np.array(aDataY),lambdaSin,pGuess)
+    return fitFunction(np.array(aDataX),np.array(aDataY),lambdaSin,pGuess)
 
 def fitPoly2(aDataX,aDataY,pGuess):
-    return fitFunc(np.array(aDataX),np.array(aDataY),lambdaPoly2,pGuess)
+    return fitFunction(np.array(aDataX),np.array(aDataY),lambdaPoly2,pGuess)
 
 def fitPoly3(aDataX,aDataY,pGuess):
-    return fitFunc(np.array(aDataX),np.array(aDataY),lambdaPoly3,pGuess)
+    return fitFunction(np.array(aDataX),np.array(aDataY),lambdaPoly3,pGuess)
 
 def fitPoly4(aDataX,aDataY,pGuess):
-    return fitFunc(np.array(aDataX),np.array(aDataY),lambdaPoly4,pGuess)
+    return fitFunction(np.array(aDataX),np.array(aDataY),lambdaPoly4,pGuess)
 
 def fitDecay(aDataX,aDataY,pGuess):
-    return fitFunc(np.array(aDataX),np.array(aDataY),lambdaDecay,pGuess)
+    return fitFunction(np.array(aDataX),np.array(aDataY),lambdaDecay,pGuess)
 
 
 
-def fitFunc(aDataX,aDataY,fitFunc,pGuess):
+def fitFunction(aDataX,aDataY,fitFunc,pGuess):
 
     """
     Generalized fitting function for any function, returns fit parameters and rSq value

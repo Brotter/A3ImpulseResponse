@@ -36,6 +36,16 @@ using namespace std;
 string outDir = "waveforms_new/";
 
 
+void printDT(TGraph* inGraph,string note = "") {
+
+  cout << "printDT (" << note << "): " <<  inGraph->GetX()[1] - inGraph->GetX()[0] << endl;
+
+  return;
+
+}
+
+
+
 TGraph* scopeParseAndAverage(int run) {
 
   //set where the antenna response scope waveform is
@@ -382,6 +392,7 @@ TGraph* surfParseAndAverage(string antName) {
     //zero pad to 1024 bins
     TGraph *finalGraph = brotterTools::makeLength(interpGraph,1024);
     delete(interpGraph);
+    //    printDT(finalGraph,"finalGraph");
 
 
     //store that in the array to average together later
@@ -414,7 +425,7 @@ TGraph* surfParseAndAverage(string antName) {
   
   
   //if you want to save the surf info (about correlating and averaging mostly)
-  surfInfoMaker(antName,entryAveraged,waveGraphs);
+  //  surfInfoMaker(antName,entryAveraged,waveGraphs);
 
 
   
