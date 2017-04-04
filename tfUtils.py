@@ -228,18 +228,42 @@ def hanningTail(inYArray,start,slope):
     Comparable to doing a hanning window with a step function on the left side
     """
     
-    outYArray = []
+    outYArray = copy.deepcopy(inYArray)
     for pt in range(0,len(inYArray)):
         if pt<=start:
-            outYArray.append(inYArray[pt])
+            continue
         if pt>start and pt<=start+slope: 
             pt_corr = pt - start
             value = 0.5 + 0.5*np.cos((np.pi*(-pt_corr/float(slope))))
-            outYArray.append(inYArray[pt]*value)
+            outYArray[pt] = inYArray[pt]*value
         if pt>(start+slope):
-            outYArray.append(0)
+            outYArray[pt] = 0
 
-    return np.array(outYArray)
+    return outYArray
+
+
+def hanningTailNeg(inYArray,start,slope):
+    """
+    If you roll the waveform to the front of the window, you only want to hanning filter the end of it, so this does that.
+
+    Opposite direction of hanningTail.  Combine them and you've got a hanningWindow!
+
+    Comparable to doing a hanning window with a step function on the left side
+    """
+    
+    outYArray = copy.deepcopy(inYArray)
+    for pt in range(0,len(inYArray)):
+        if pt >= start:
+            continue
+        if pt>=(start-slope) and pt<start: 
+            pt_corr = pt - start
+            value = 0.5 + 0.5*np.cos((np.pi*(-pt_corr/float(slope))))
+            outYArray[pt] = inYArray[pt]*value
+        if pt<(start-slope):
+            outYArray[pt] = 0
+
+    return outYArray
+
 
 
 def hanningWindow(inXArray,inYArray,center,totalWidth=1000,slope=200):
@@ -302,7 +326,7 @@ def hanningWindow(inXArray,inYArray,center,totalWidth=1000,slope=200):
 def nyquistLimit(inputWaveVolts,fMax):
     
     #this is a real butterworth filter
-    lpFilt = 1.25 #GHz (1.25 is nyquist of LAB3B, so this is a const)
+    lpFilt = 1.3 #GHz (1.3 is nyquist of LAB3B, so this is a const)
     lpFilt /= fMax #scale it by nyquist
     b,a = signal.butter(5,lpFilt,'lowpass')
 
@@ -1467,7 +1491,7 @@ def plotMinimizedGroupDelay(f,fft):
 #    axes[1].plot(f[1:],gdNew,label="corrected group delay")
     twinAx = axes[1].twinx()
     twinAx.set_ylabel("Gain (dB)")
-    twinAx.plot(f,10*np.log(np.absolute(fft)),label="gain",color="red")
+    twinAx.plot(f,10*np.log10(np.absolute(fft)),label="gain",color="red")
     axes[1].legend(loc="lower left")
     twinAx.legend()
 
