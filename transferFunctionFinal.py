@@ -905,7 +905,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
     inX,inY = processWaveform(inRawX,inRawY,"palin")
     inY = np.roll(inY,30-np.argmax(inY))
-    inY = tf.hanningTail(inY,100,20)
+#    inY = tf.hanningTail(inY,130,20)
     inX = inX[:1024]
     inY = inY[:1024]
     inF,inFFT = tf.genFFT(inX,inY)
@@ -919,11 +919,11 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     #output pulse
     outRawX,outRawY,outRawF,outRawFFT = importPalAntOut(chan)
     outX,outY = processWaveform(outRawX,outRawY,"palout")
-    outY = np.roll(outY,30-np.argmax(outY))
-    outY = tf.hanningTail(outY,100,30)
+    outY = np.roll(outY,50-np.argmax(outY))
+#    outY = tf.hanningTail(outY,130,30)
     outX = outX[:1024]
     outY = outY[:1024]
-    outY = tf.highPass(outX,outY)
+#    outY = tf.highPass(outX,outY)
     outF,outFFT = tf.genFFT(outX,outY)
 
 #    outFFT = tf.minimizeGroupDelayFromFFT(outF,outFFT)
@@ -947,6 +947,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
         ax0[1][0].plot(inRawF,tf.calcSpecMag(inRawF,inRawFFT),label="Raw Input Pulse",color="red")
         ax0[1][0].plot(inF,tf.calcSpecMag(inF,inFFT),label="Processed Pulse",color="blue")
+        ax0[1][0].set_ylim([-70,-20])
         ax0[1][0].set_ylabel("Spectral Magnitude \n [dBm/Hz]")
         ax0[1][0].legend()
 
@@ -958,13 +959,14 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
         ax0[1][1].plot(outRawF,tf.calcSpecMag(outRawF,outRawFFT),label="Raw Output Pulse",color="red")
         ax0[1][1].plot(outF,tf.calcSpecMag(outF,outFFT),label="Processed Pulse",color="blue")
+        ax0[1][1].set_ylim([-100,-40])
         ax0[1][1].set_ylabel("Gain (dB)")
         ax0[1][1].set_xlabel("Frequency (GHz)")
         ax0[1][1].legend()
 
         ax0[2][1].plot(outRawF,tf.calcGroupDelay(outRawFFT,inputF=outRawF),label="Raw Output Pulse",color="red")
         ax0[2][1].plot(outF,tf.calcGroupDelay(outFFT,inputF=outF),label="Processed Pulse",color="blue")
-        ax0[2][1].set_ylim([-25,25])
+        ax0[2][1].set_ylim([-30,30])
         ax0[2][1].set_ylabel("Group Delay (ns)")
         ax0[2][1].set_xlabel("Frequency (GHz)")
         ax0[2][1].legend()
@@ -987,9 +989,6 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     antTFFFT[0] = 0
 
     antTFF = inF
-    antTFX,antTFY = tf.genTimeSeries(antTFF,antTFFFT)
-
-
 #    antTFX,antTFY,antTFF,antTFFFT = computeTF(inF,inFFT,outF,outFFT)
 
     """
@@ -1007,8 +1006,8 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     
     #need to take out 1/R flight distance for absolute gain
     # According to notes, 8.89m face to face flight distance
-    # Antennas have a depth of ~0.5m, so r(f) should have two points, (0.180,8.89) and (1.2,9.89)
-    distM = 0.5/(1.2-0.18)
+    # Antennas have a depth of 22" = 0.5588m, so r(f) should have two points, (0.180,8.89) and (1.2,10)
+    distM = (0.5588*2)/(1.2-0.18)
     distYint = 8.89 - distM*0.18
     dist = antTFF*distM + distYint
     for i in range(0,len(dist)):
@@ -1019,7 +1018,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
     print "length antTFFFT:",len(antTFFFT)
 
-    if showPlots and 0:
+    if showPlots and 1:
         figDist,axDist = lab.subplots()
         axDist.plot(antTFF,dist)
         axDist.set_xlabel("Frequency (GHz)")
@@ -1030,39 +1029,50 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     #take the square root to get the normalized complex height
     antTFFFT = tf.sqrtOfFFT2(antTFF,antTFFFT)
 
-    #also there is a conversion to "effective" height [ sqrt(50/377) ]
-    antTFFFT *= np.sqrt(50./377)
 
-
-    
     #causality conditions aren't good for measured signals (artifically distort phase)!
 #    antTFFFT = tf.makeCausalFFT(antTFFFT,np.argmax(tf.fftw.irfft(antTFFFT)))
 
 
     #I have to get the time domain again after that
-    antTFY = tf.fftw.irfft(antTFFFT)
+    antTFX,antTFY = tf.genTimeSeries(antTFF,antTFFFT)
 
 
     #remove all the stupid power above 1.3GHz since ANITA can't measure it (probably should be lower)
     #butterworth filter @ 1.3
+    antTFY = tf.highPass(antTFX,antTFY)
     antTFY = tf.nyquistLimit(antTFY,5)
 
     #10BH is upside down?
-    if chan == "10BH":
+    #A bunch are actually!  Nothing here constrains absolute polarity
+    if np.max(antTFY) < -np.min(antTFY):
+        print "Flipped!"
         antTFY *= -1
 
 
-    antTFFFT = tf.fftw.rfft(antTFY)
 
 
-    if showPlots:
-        gainTF = ((4*np.pi*antTFF)/(0.3**2))*np.abs(antTFFFT)**2
 
+    antTFF,antTFFFT = tf.genFFT(antTFX,antTFY)
+
+
+    #Produce a plot for the gain normalized to dBi (hence the 4pi)
+    if showPlots or savePlots:
+        gainTF = ((4*np.pi*antTFF**2)/(0.3**2))*np.abs(antTFFFT)**2
         figGain,axGain = lab.subplots()
+        figGain.suptitle(chan)
         axGain.plot(antTFF,10*np.log10(gainTF))
-        figGain.show()
-        
 
+        axGain.set_ylabel("Antenna Gain (dBi)")
+        axGain.set_xlabel("Frequency (GHz)")
+        axGain.set_ylim([-20,20])
+        axGain.set_xlim([0,3])
+
+        if showPlots:
+            figGain.show()
+        if savePlots:
+            figGain.savefig("plots/doPalAnt_AntGain"+chan+".png")
+        
 
 
 
@@ -1108,6 +1118,14 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
         ax[0][0].set_ylabel("Voltage (~V)")
         ax[1][0].set_ylabel("Gain (dB)")
         ax[2][0].set_ylabel("Group Delay (ns)")
+
+        ax[1][0].set_ylim([-60,-35])
+        ax[1][1].set_ylim([-100,-60])
+        ax[1][2].set_ylim([-60,0])
+
+        ax[2][0].set_ylim([-10,10])
+        ax[2][1].set_ylim([-20,20])
+        ax[2][2].set_ylim([-20,20])
         
         ax[2][0].set_xlabel("Frequency (GHz)")
         ax[2][1].set_xlabel("Frequency (GHz)")
@@ -1139,6 +1157,15 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     return antTFX,antTFY,antTFF,antTFFFT
 
 
+def palAntCables():
+    """
+    
+
+    """
+
+
+
+
 def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
     #get antenna
 #    antX,antY,antF,antFFT = doRoofAntWithCables()
@@ -1152,6 +1179,10 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
     a3F = sigChainF
     a3FFT = sigChainFFT * antFFT
 
+    #also there is a scaling from free space (377ohms) to system impedance (50ohms) [ sqrt(50/377) ]
+    a3FFT *= np.sqrt(50./377)
+
+
     a3X,a3Y = tf.genTimeSeries(a3F,a3FFT)
     
     if (showPlots or savePlots):
@@ -1160,27 +1191,27 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
         ax[0].set_title(chan)
         ax[0].plot(antX,np.roll(antY,100),label="Antenna")
         ax[0].legend()
-        ax[0].set_ylabel("Voltage (~V)")
+        ax[0].set_ylabel("Antenna Height (V/m)")
         ax[1].plot(sigChainX,np.roll(sigChainY,100),label="sigChain",color="red")
         ax[1].legend()
-        ax[1].set_ylim([-0.2,0.2])
-        ax[1].set_ylabel("Voltage (~V)")
+#        ax[1].set_ylim([-0.2,0.2])
+        ax[1].set_ylabel("Gain (unitless)")
         a3YPeak = np.argmax(a3Y)
         ax[2].plot(a3X,np.roll(a3Y,100-a3YPeak),label="Convolution",color="black")
         ax[2].legend()
-        ax[2].set_ylim([-0.6,0.6])
+#        ax[2].set_ylim([-0.6,0.6])
         ax[2].set_xlabel("Time (ns)")
-        ax[2].set_ylabel("Voltage (~V)")
+        ax[2].set_ylabel("Instrument Response \n (V/m)")
         
         ax[3].plot(a3F,tf.calcLogMag(a3F,a3FFT),color="black")
-        ax[3].set_ylim([-100,-30])
+#        ax[3].set_ylim([-100,-30])
         ax[3].set_xlim([0.1,1.5])
         ax[3].set_xlabel("Frequency (GHz)")
         ax[3].set_ylabel("Gain (dBm)")
 
         ax[4].plot(a3F,tf.calcPhase(tf.minimizeGroupDelayFromFFT(a3F,a3FFT,highLim=256)),color="black")
         ax[4].set_xlim([0,2])
-        ax[4].set_ylim([-20,20])
+#        ax[4].set_ylim([-20,20])
 
         if showPlots:
             fig.show()
@@ -1239,15 +1270,15 @@ def computeTF(inF,inFFT,outF,outFFT):
       probably by the mean of the group delay!
     """
 
-    tfGrpDlyMean = np.mean(tf.calcGroupDelay(tfFFT,inputF=tfF))
-    dT = tfX[1]-tfX[0]
-    print "tfGrpDlyMeanPt=" + str(tfGrpDlyMean)
+#    tfGrpDlyMean = np.mean(tf.calcGroupDelay(tfFFT,inputF=tfF))
+#    dT = tfX[1]-tfX[0]
+#    print "tfGrpDlyMeanPt=" + str(tfGrpDlyMean)
 
         #roll it backwards, 1/8th off window (the mean is at the middle I think)
-    try:
-        tfY = np.roll(tfY,-(int(tfGrpDlyMean/dT)-(len(tfY)*3)/8)) 
-    except:
-        print "Warning in computeTF: coulnd't roll because the group delay is totally borked"
+#    try:
+#        tfY = np.roll(tfY,-(int(tfGrpDlyMean/dT)-(len(tfY)*3)/8)) 
+#    except:
+#        print "Warning in computeTF: coulnd't roll because the group delay is totally borked"
 
         #B) maybe high pass it (if there is a lot of power there)
     #    tfY = tf.highPass(tfX,tfY)    
@@ -1360,13 +1391,13 @@ def doAllSigChains(savePlots=False,showPlots=False):
     return allChans
 
 
-def doAllAntennas():
+def doAllAntennas(savePlots=False,showPlots=False):
     # just does all the palestine antennas
     chans = np.loadtxt("chanList.txt",dtype=str)
     allChans = {}
     for chan in chans:
         try:
-            allChans[chan] = doPalAnt(chan)[:2]
+            allChans[chan] = doPalAnt(chan,showPlots=showPlots,savePlots=savePlots)[:2]
         except:
             print chan+" FAILED************************************************"
 
@@ -1504,14 +1535,14 @@ def saveAllNicePlots(allChans):
         fig.savefig("autoPlots/"+chan+".png")
 
 
-def plotCompare(allChans,savePlots=False):
+def plotCompare(allChans,savePlots=False,ant=False):
     """
       Plot a comparison of all the channels in a way that is sort of easy to see
       Also has a good way to exclude channels that you think are "bad" (so you
       can fix them later of course)
     """
 
-#    lab.close("all")
+    lab.close("all")
 
     figV,axV = lab.subplots(3,sharex=True,figsize=[11,8.5])
     figH,axH = lab.subplots(3,sharex=True,figsize=[11,8.5])
@@ -1603,15 +1634,31 @@ def plotCompare(allChans,savePlots=False):
     axFFTV[2].set_title("Bottom")
     axFFTH[2].set_title("Bottom")
 
-    axV[0].set_xlim([0,60])
-    axH[0].set_xlim([0,60])
+    axV[0].set_xlim([0,20])
+    axH[0].set_xlim([0,20])
+
+    axV[2].set_xlabel("Time (ns)")
+    axH[2].set_xlabel("Time (ns)")
+    axV[2].set_xticks(np.arange(0,20,1))
+    axH[2].set_xticks(np.arange(0,20,1))
+
+
+    axV[1].set_ylabel("Normalized antenna height (m/ns)")
+    axH[1].set_ylabel("Normalized antenna height (m/ns)")
 
     axFFTV[0].set_xlim([0,2])
     axFFTH[0].set_xlim([0,2])
 
+    axFFTV[2].set_xlabel("Frequency (GHz)")
+    axFFTH[2].set_xlabel("Frequency (GHz)")
+
+    axFFTH[1].set_ylabel("Normalized antenna height log(m/ns)")
+    axFFTH[1].set_ylabel("Normalized antenna height log(m/ns)")
+
+
     for i in range(0,3):
-        axFFTV[i].set_ylim([15,70])
-        axFFTH[i].set_ylim([15,70])
+        axFFTV[i].set_ylim([-40,5])
+        axFFTH[i].set_ylim([-40,5])
 
     axV[1].legend(frameon=True,ncol=2)
     axH[1].legend(frameon=True,ncol=2)
@@ -1635,6 +1682,43 @@ def plotCompare(allChans,savePlots=False):
 
 
 
+def plotAntennaGain(allAnts,savePlots=False):
+
+    #Produce a plot for the gain normalized to dBi (hence the 4pi)
+    
+    figGain,axGain = lab.subplots()
+    figGain.suptitle("ANITA3 Antenna Gain")
+    
+    axGain.set_ylabel("Antenna Gain (dBi)")
+    axGain.set_xlabel("Frequency (GHz)")
+    axGain.set_ylim([-20,20])
+    axGain.set_xlim([0,3])
+
+    for chan in allAnts:
+        x,y = allAnts[chan]
+        f,fft = tf.genFFT(x,y)
+        gainTF = ((4*np.pi*f**2)/(0.3**2))*np.abs(fft)**2
+
+
+        if chan == "01BH":
+            axGain.plot(f,10*np.log10(gainTF),label="H",color="red")
+        if chan == "01BV":
+            axGain.plot(f,10*np.log10(gainTF),label="V",color="blue")
+        if chan[-1] == "H":
+            axGain.plot(f,10*np.log10(gainTF),color="red")
+        if chan[-1] == "V":
+            axGain.plot(f,10*np.log10(gainTF),color="blue")
+
+
+    axGain.legend()
+    figGain.show()
+
+    if savePlots:
+        figGain.savefig("plots/doPalAnt_AntGain"+chan+".png")
+        
+
+
+
 def plotOneAtATime(allChans):
     fig,ax = lab.subplots(2)
     fig.show()
@@ -1643,12 +1727,12 @@ def plotOneAtATime(allChans):
         ax[0].cla()
         ax[0].set_title(chan)
         ax[0].plot(x,y)
-        ax[0].set_ylim([-150,150])
+#        ax[0].set_ylim([-150,150])
         f,fft = tf.genFFT(x,y)
         ax[1].cla()
         ax[1].plot(f,tf.calcLogMag(f,fft))
-        ax[1].set_ylim([10,70])
-        ax[1].set_xlim([0,2])
+#        ax[1].set_ylim([10,70])
+#        ax[1].set_xlim([0,2])
         fig.canvas.draw()
         raw_input()
 

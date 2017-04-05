@@ -325,10 +325,13 @@ def hanningWindow(inXArray,inYArray,center,totalWidth=1000,slope=200):
 
 def nyquistLimit(inputWaveVolts,fMax):
     
+    print "nyquistLimit(): max:",np.max(inputWaveVolts)," min:",np.min(inputWaveVolts)
+
     #this is a real butterworth filter
     lpFilt = 1.3 #GHz (1.3 is nyquist of LAB3B, so this is a const)
     lpFilt /= fMax #scale it by nyquist
-    b,a = signal.butter(5,lpFilt,'lowpass')
+    print "nyquistLimit(): lpFilt=",lpFilt
+    b,a = signal.butter(3,lpFilt,'lowpass')
 
     filtered = signal.lfilter(b,a,inputWaveVolts,axis=0)
 
