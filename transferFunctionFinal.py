@@ -983,6 +983,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     #computeTF?  hmm maybe just do a normal one
     """
     This does the (F_rec/F_src)*(c/if) calculation
+    ends up being in units of "meters"
     """
 
     antTFFFT = np.divide(outFFT,inFFT)*(0.3/(1j*inF))
@@ -1007,6 +1008,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     #need to take out 1/R flight distance for absolute gain
     # According to notes, 8.89m face to face flight distance
     # Antennas have a depth of 22" = 0.5588m, so r(f) should have two points, (0.180,8.89) and (1.2,10)
+    # makes it in units of "meters squared"
     distM = (0.5588*2)/(1.2-0.18)
     distYint = 8.89 - distM*0.18
     dist = antTFF*distM + distYint
@@ -1027,6 +1029,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
 
     #take the square root to get the normalized complex height
+    # units of "meters again!"
     antTFFFT = tf.sqrtOfFFT2(antTFF,antTFFFT)
 
 
@@ -1035,6 +1038,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
 
     #I have to get the time domain again after that
+    # units of "meters / nanosecond"
     antTFX,antTFY = tf.genTimeSeries(antTFF,antTFFFT)
 
 
@@ -1061,7 +1065,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
         gainTF = ((4*np.pi*antTFF**2)/(0.3**2))*np.abs(antTFFFT)**2
         figGain,axGain = lab.subplots()
         figGain.suptitle(chan)
-        axGain.plot(antTFF,10*np.log10(gainTF))
+        axGain.plot(antTFF,10*np.log10(gainTF)) #10 instead of 20 because... its a power gain already I htink
 
         axGain.set_ylabel("Antenna Gain (dBi)")
         axGain.set_xlabel("Frequency (GHz)")
@@ -1643,8 +1647,8 @@ def plotCompare(allChans,savePlots=False,ant=False):
     axH[2].set_xticks(np.arange(0,20,1))
 
 
-    axV[1].set_ylabel("Normalized antenna height (m/ns)")
-    axH[1].set_ylabel("Normalized antenna height (m/ns)")
+    axV[1].set_ylabel("Effective antenna height (m/ns)")
+    axH[1].set_ylabel("Effective antenna height (m/ns)")
 
     axFFTV[0].set_xlim([0,2])
     axFFTH[0].set_xlim([0,2])
@@ -1652,13 +1656,13 @@ def plotCompare(allChans,savePlots=False,ant=False):
     axFFTV[2].set_xlabel("Frequency (GHz)")
     axFFTH[2].set_xlabel("Frequency (GHz)")
 
-    axFFTH[1].set_ylabel("Normalized antenna height log(m/ns)")
-    axFFTH[1].set_ylabel("Normalized antenna height log(m/ns)")
+    axFFTH[1].set_ylabel("Effective antenna height log(m/ns)")
+    axFFTH[1].set_ylabel("Effective antenna height log(m/ns)")
 
 
     for i in range(0,3):
-        axFFTV[i].set_ylim([-40,5])
-        axFFTH[i].set_ylim([-40,5])
+        axFFTV[i].set_ylim([0,55])
+        axFFTH[i].set_ylim([0,55])
 
     axV[1].legend(frameon=True,ncol=2)
     axH[1].legend(frameon=True,ncol=2)
