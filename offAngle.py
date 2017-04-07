@@ -14,6 +14,8 @@ Update Nov 1st 2016:  This code is a disaster.  Some of it works, some of it doe
 
 """
 
+debug=False
+
 import numpy as np
 import pylab as lab
 import glob
@@ -33,8 +35,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 
 #directories with antenna pulse data
-localDir = "$HOME/Dropbox/UH Manoa/ANITA/A3ImpulseResponse/calibrationLinks/"
-#localDir = "/Volumes/BenANITA3Data/"
+#localDir = "$HOME/Dropbox/UH Manoa/ANITA/A3ImpulseResponse/calibrationLinks/"
+localDir = "/Volumes/ANITA3Data/ANITA3_calibrationFiles/"
 
 roofDir = "Rooftop_Seevey_Antenna/Antenna_Impulse_Testing/"
 currLocalRoofDir=localDir+roofDir+"Attempt_2_02July2012/Hpol/"
@@ -48,6 +50,9 @@ chamberIdentDir="Anechoic_Chamber_New_Horn_Impulse/IdenticalAntennas/Ant2Blue_to
 chamberRefPulse = localDir + chamberIdentDir + "Impulse_NewRedCable_23May2012.dat"
 
 chamberBoresightPulse = localDir+chamberIdentDir + "Impulse_p180Deg_t090Deg_22May2012_H_Two.dat"
+
+
+newChamberBaseDir = "/Volumes/ANITA3Data/ANITA3_calibrationFiles/Anechoic_Chamber_New_Horn_Impulse/"
 
 
 def main():
@@ -481,7 +486,7 @@ def remoteFileList_chamberHPol(host="charm.phys.hawaii.edu",port=2505):
 
 
 def localFileList_ANITA2chamberHPol():
-    baseDir = "/Volumes/BenANITA3Data/Anechoic_Chamber_New_Horn_Impulse/ANITA2Antennas/HPol_Pulse/"
+    baseDir = "/Volumes/ANITA3Data/Anechoic_Chamber_New_Horn_Impulse/ANITA2Antennas/HPol_Pulse/"
 
     returnFiles = (baseDir+"Impulse_p180Deg_t120Deg_15June2012.dat",
                    baseDir+"Impulse_p150Deg_t090Deg_15June2012.dat",
@@ -495,7 +500,7 @@ def localFileList_ANITA2chamberHPol():
 
 
 def localFileList_ANITA3chamberHPol():
-    baseDir = "/Volumes/BenANITA3Data/Anechoic_Chamber_New_Horn_Impulse/IdenticalAntennas/Ant2Blue_to_Ant0/HPol_Pulse/"
+    baseDir = newChamberBaseDir + "IdenticalAntennas/Ant2Blue_to_Ant0/HPol_Pulse/"
 
     returnFiles = glob.glob(baseDir+"*.dat")
 
@@ -504,25 +509,25 @@ def localFileList_ANITA3chamberHPol():
     returnFiles.pop(5)
 
     for file in returnFiles:
-        print file
+        print file.split("/")[-1]
 
     return returnFiles
 
 
 def localFileList_ANITA3chamberVPol():
-    baseDir = "/Volumes/BenANITA3Data/Anechoic_Chamber_New_Horn_Impulse/IdenticalAntennas/Ant2Blue_to_Ant0/VPol_Pulse/"
+    baseDir = newChamberBaseDir + "/IdenticalAntennas/Ant2Blue_to_Ant0/VPol_Pulse/"
 
     returnFiles = glob.glob(baseDir+"*p180Deg_*.dat")
 
 
     for file in returnFiles:
-        print file
+        print file.split("/")[-1]
 
     return returnFiles
 
 
 def localFileList_ANITA3chamberHPolFlipped():
-    baseDir = "/Volumes/BenANITA3Data/Anechoic_Chamber_New_Horn_Impulse/IdenticalAntennas/Ant2Blue_to_Ant0/HPol_Pulse/"
+    baseDir = newChamberBaseDir + "/IdenticalAntennas/Ant2Blue_to_Ant0/HPol_Pulse/"
 
     returnFiles = glob.glob(baseDir+"*.dat")
 
@@ -531,7 +536,7 @@ def localFileList_ANITA3chamberHPolFlipped():
     returnFiles.pop(5)
 
     for file in returnFiles:
-        print file
+        print file.split("/")[-1]
 
     return returnFiles
     
@@ -1045,3 +1050,138 @@ def multipage(filename, figs=None):
         fig.savefig(pp, format='pdf')
     pp.close()
     return
+
+
+
+
+def doOffAngle():
+    """
+    April 2017
+
+    Its been awhile since I worked with this, so I'm going to write a new function so I know it is right
+    and I don't mess up any of the old stuff just in case
+
+    This uses the complex antenna height generated with doPalAnt in transferFunctionFinal, as only one antenna
+    was rotated, so they cannot be treated as identical and a single antenna needs to be deconvolved
+
+    """
+
+
+    #get a list of the files, which should be all the angles
+    files = localFileList_ANITA3chamberHPol()
+    channel = 1
+    eventAvgs = 50
+    rotate="phi"
+
+
+    freqs = []
+    allFreqs = []
+    mags = []
+    allMags = []
+    angles = []
+
+    #params for making contour plot
+    numFreqs = 25
+    stop = 100 #~1GHz
+    start = 2
+    step = stop/float(numFreqs)
+
+    sns.set_palette(sns.color_palette("husl",numFreqs))
+
+
+    #get the input pulse
+    inPulseX,inPulseY =  antChamberResponse(chamberRefPulse,channel=0)
+    #I'm doing things in nanoseconds so lets keep doing that
+    inPulseX *= 1e9
+    #also it is sampled too fast, so lets just do the FFT trick to downsample it
+    inPulseF,inPulseFFT = tf.genFFT(inPulseX,inPulseY)
+    inPulseF = inPulseF[:501]
+    inPulseFFT = inPulseFFT[:501]
+    inPulseX,inPulseY = tf.genTimeSeries(inPulseF,inPulseFFT)
+
+
+    #get the complex antenna height from tff.doPalAnt's results
+    #also note that I am cutting the end off so it is only 1000 points long
+    antHeightX,antHeightY = np.loadtxt("/Users/brotter/benCode/impulseResponse/integratedTF/transferFunctions/antHeight_avg.txt")[:1000].T
+    antHeightF,antHeightFFT = tf.genFFT(antHeightX,antHeightY)
+
+    boresight = files.pop(4)
+    print boresight
+    print files
+
+    return
+
+    #loop over all the files
+    for file in files:
+        #import all the events from that file (it is stored with a ton of events in it)
+        events = importAll(file,channel=channel)
+        print "doOffAngle(): ",file," has number of events:",len(events)
+        fftAvgs = len(events)/eventAvgs
+        print "doOffAngle(): doing ",fftAvgs," fft averages"
+        #so first I average together a bunch of events, then I average the FFTs of the transfer functions together?
+        for fftAvgNum in range(0,fftAvgs):
+            #get the averaged waveform
+            avgEventX,avgEventY = tf.correlateAndAverage(events[eventAvgs*fftAvgNum:eventAvgs*(fftAvgNum+1)])
+            avgEventX *= 1e9
+            #also sampled too fast, so lets just do the FFT trick to downsample it again
+            avgEventF,avgEventFFT = tf.genFFT(avgEventX,avgEventY)
+            avgEventF   = avgEventF[:1001]
+            avgEventFFT = avgEventFFT[:1001]
+            avgEventX,avgEventY = tf.genTimeSeries(avgEventF,avgEventFFT)
+            #it is also too long
+            avgEventX = avgEventX[:1000]
+            avgEventY = avgEventY[:1000]
+            print len(avgEventX),len(avgEventY)
+            avgEventF,avgEventFFT = tf.genFFT(avgEventX,avgEventY)
+            print len(avgEventF),len(avgEventFFT)
+            if debug:
+                print "doOffAngle(): avgEvent length: ",len(avgEventX)," dT:",avgEventX[1]-avgEventX[0]
+                print "doOffAngle(): antHeight length: ",len(antHeightX)," dT:",antHeightX[1]-antHeightX[0]
+                print "doOffAngle(): inPulse length: ",len(inPulseX)," dT:",inPulseX[1]-inPulseX[0]
+
+                print "doOffAngle(): avgEventFFT length: ",len(avgEventF),"/",len(avgEventFFT)," dF:",avgEventF[1]-avgEventF[0]
+                print "doOffAngle(): antHeightFFT length: ",len(antHeightF),"/",len(antHeightFFT)," dF:",antHeightF[1]-antHeightF[0]
+                print "doOffAngle(): inPulseFFT length: ",len(inPulseF),"/",len(inPulseFFT)," dF:",inPulseF[1]-inPulseF[0]
+            #find its peak (with some offset for some reason)
+            peak = np.argmax(np.abs(avgEventY[1])) + 500
+            print "I'M CRAB V.v.V ",fftAvgNum #for fun
+
+            #generate the antenna height for the rotating antenna using the equation
+            # H(RX) = (c*r*F(rec)) / (i*f*F(src)*H(TX))
+            # F(rec) == avgEvent
+            # F(src) == inPulse
+            # H(TX) == antHeight
+
+            #also gotta get a new "distance" array, face is at 5.6m for this one dawg
+            distM = (0.5588*2)/(1.2-0.18)
+            distYint = 5.6 - distM*0.18
+            dist = avgEventF*distM + distYint
+            for i in range(0,len(dist)):
+                if dist[i] > 8.5:
+                    dist[i] = 8.5
+                    
+
+
+            transFuncF = avgEventF
+            transFuncFFT = (0.3*dist*avgEventFFT) / (1j * transFuncF * inPulseFFT * antHeightFFT)
+            transFuncX,transFuncY = tf.genTimeSeries(transFuncF,transFuncFFT)
+
+            logMag = tf.calcLogMag(transFuncF,transFuncFFT)
+
+            if fftAvgNum == 0:
+                logMagAvg = logMag/fftAvgs
+            else:
+                logMagAvg += logMag/fftAvgs
+
+        mags.append(logMagAvg)
+        allMags.append(logMagAvg)
+
+        if rotate=="phi":
+            angles.append(file.split("/")[-1].split("_")[1][1:4])
+        if rotate=="theta":
+            angles.append(file.split("/")[-1].split("_")[2][1:4])
+
+
+
+
+    return angles,transFuncF,allMags

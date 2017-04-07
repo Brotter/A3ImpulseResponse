@@ -34,6 +34,12 @@ import benMathFit as mf
 
 import glob
 
+
+#global debug flag for annoying print statements
+debug = False
+
+
+
 def genFFT(graphX,graphY):
     outFFT = fftw.rfft(graphY)
     outF = genFreqArray(graphX)
@@ -47,7 +53,7 @@ def genFreqArray(graphX):
 
     fMax = length * dF
 
-    return np.arange(0,fMax,dF)
+    return np.arange(0,length)*dF
 
 
 def genTimeSeries(graphF,graphFFT):
@@ -63,8 +69,6 @@ def genTimeArray(graphF):
     dT = 1./((graphF[1]-graphF[0])*lengthT)
     
     tMax = lengthT * dT
-
-    print dT,tMax
 
     return np.arange(0,tMax,dT)
 
@@ -741,7 +745,7 @@ def correlation(graphA,graphB):
     return iXCorr
    
 
-def findPeakCorr(dataA,dataB,xMin=0,xMax=-1,roll=0):
+def findPeakCorr(dataA,dataB,xMin=0,xMax=-1,roll=0,):
     """
     A wrapper for correlation and fitAndPinpoint basically that allows you to manipulate first?
 
@@ -761,7 +765,7 @@ def findPeakCorr(dataA,dataB,xMin=0,xMax=-1,roll=0):
 
     xCorrY = np.roll(correlation(dataA,dataB),roll)[xMin:xMax]
 
-    print "findPeakCorr",np.argmax(xCorrY)
+    if debug: print "findPeakCorr",np.argmax(xCorrY)
     
     params,rSq,peak = fitAndPinpoint(xCorrY)
     max = params[1]
@@ -810,7 +814,7 @@ def findPeakCorrs_DONTUSE(data,scopeA=0,scopeB=1,chanA=0,chanB=0,xMin=0,xMax=-1,
     return np.array(maxes),np.array(rSqs),np.array(peaks)
 
 
-def fitAndPinpoint(xCorrY,windowSize=2):
+def fitAndPinpoint(xCorrY,windowSize=5):
     """
     Takes a cross correlation graph, fits a gaussian to it, and returns the
     offset fits to (from benMathFit):
@@ -819,6 +823,7 @@ def fitAndPinpoint(xCorrY,windowSize=2):
     Inputs:
     xCorrY=the correlation graph you want to find the maximum of
     window=the size of the guassian fit, defaults to +-10
+             this needs to be sort of big, otherwise the fit wont work!
 
     I want to do this in POINTS, not whatever the x axis is.  Other things can
     deal with the stupid X axis
@@ -840,11 +845,13 @@ def fitAndPinpoint(xCorrY,windowSize=2):
     
     #find the absolute peak of the correlation
     peak = np.argmax(xCorrY)
-    print "fitAndPinpoint(): peak=",peak
+    if debug: print "fitAndPinpoint(): peak=",peak
 
     #remember that a peak at len(xCorrY)/2 is "zero" offset!
-    peakValue = peak-len(xCorrY)/2
-    
+    #okay now I'm pretty sure this isn't true
+#    peakValue = peak-len(xCorrY)/2
+    peakValue = peak
+   
     #if it is near zero (or near len(xCorrY) the windowing isn't going to work)
     #remember to keep track of this, though the fit gives a fractional offset
     # so I just have to not change the peakValue (which is the "center" of the fit sort of)
@@ -868,7 +875,7 @@ def fitAndPinpoint(xCorrY,windowSize=2):
     windowY = xCorrY[peak-windowSize:peak+windowSize+1]
     windowX = np.arange(-windowSize,windowSize+1)
 
-    print "fitAndPinpoint ",len(windowY),len(windowX)
+    if debug: print "fitAndPinpoint ",len(windowY),len(windowX)
 
     #actually do the fit
     params,rSq = mf.fitGaussian(windowX,windowY,[guessA,guessB,guessC,guessD])
@@ -880,7 +887,7 @@ def fitAndPinpoint(xCorrY,windowSize=2):
 
 
     #Now the params you are returning are:
-    print "peak=",peak," peakValue=",peakValue," fitPeak=",params[1]
+    if debug: print "peak=",peak," peakValue=",peakValue," fitPeak=",params[1]
 
 
     
