@@ -14,7 +14,7 @@ Update Nov 1st 2016:  This code is a disaster.  Some of it works, some of it doe
 
 """
 
-debug=False
+debug=True
 
 import numpy as np
 import pylab as lab
@@ -327,14 +327,21 @@ def normalizeHeatmap(mags):
     return normMags.T
 
 
-def plotHeatmapAndContour(angles,freqs,mags,title="test",center=180,invert=True):
+def plotHeatmapAndContour(angles,freqs,mags,title="test",center=180,invert=True,norm=False,savePlot=False):
     print center
-    fig = plotHeatmap(angles,freqs,mags,title=title,center=center,invert=invert)
-    plotContour(angles,freqs,mags,fig=fig,center=center)
+
+    if norm:
+        mags = normalizeHeatmap(mags)
+    fig = plotHeatmap(angles,freqs,mags,title=title,center=center,invert=invert,norm=norm)
+    plotContour(angles,freqs,mags,fig=fig,center=center,norm=norm)
+
+    if savePlot:
+        fig.savefig("heatmap.pdf")
+
     return fig
 
 
-def plotHeatmap(angles,freqs,mags,title="test",center=180,invert=True):
+def plotHeatmap(angles,freqs,mags,title="test",center=180,invert=True,norm=False):
 
     sns.set_style("whitegrid")
 
@@ -371,7 +378,8 @@ def plotHeatmap(angles,freqs,mags,title="test",center=180,invert=True):
                       extent=np.array((freqs[0],freqs[-1]+dFreq,
                                        0,len(angles)),dtype=np.int),
                       interpolation="none")
-        
+
+
     ax.axes.set_title(title)
     
     if invert==True:
@@ -389,13 +397,17 @@ def plotHeatmap(angles,freqs,mags,title="test",center=180,invert=True):
     ax.axes.set_xticklabels(freqs[::10])
     
     #label it!
-    lab.xlabel("Frequency (MHz)")
+    lab.xlabel("Frequency (GHz)")
     lab.ylabel("E-field rotation away from boresight")
     cbar =fig.colorbar(ax)
-    cbar.set_label("Spectral power below maximum (dB)")
+    if norm:
+        cbar.set_label("Gain below maximum response (dB)")
+    else:
+        cbar.set_label("Antenna Gain (dBi)")
 
     fig.show()
-
+    ax.axes.set_xlim([0.1,1.5])
+    fig.canvas.draw()
     return fig
     
     
@@ -435,7 +447,7 @@ def plotHeatmapSeaborn(angles,freqs,mags):
     return fig
 
 
-def plotContour(angles,freqs,mags,fig=-1,center=180):
+def plotContour(angles,freqs,mags,fig=-1,center=180,norm=False):
 
     if fig==-1:
         newFig = True
@@ -451,9 +463,16 @@ def plotContour(angles,freqs,mags,fig=-1,center=180):
     angles = np.array(angles,dtype=np.str)
 
     dFreq = freqs[1]-freqs[0]
-    contours = (-20,-10,-6,-3,-2,-1,-0.1)
+    if norm:
+        contours = (-20,-10,-6,-3,-1,-0.1)
+        colors = ("lightgrey","silver","grey","red","black","green")
+    else:
+#    contours = (-20,-10,-6,-3,-0.1)
+        contours = (-10,-3,0,3,6,9,12)
+        colors = ("lightgrey","silver","grey","dimgrey","black","white","red")
     print "fart"
-    colors = ("lightgrey","silver","grey","red","dimgrey","black","green")
+#    colors = ("lightgrey","silver","red","black","green")
+
     cs = ax.contour(freqs+dFreq/2.,angles,mags,contours,colors=colors)
     lab.clabel(cs, inline=1, fontsize=10)
 
@@ -1054,7 +1073,7 @@ def multipage(filename, figs=None):
 
 
 
-def doOffAngle():
+def doOffAngle(pol="H"):
     """
     April 2017
 
@@ -1068,10 +1087,14 @@ def doOffAngle():
 
 
     #get a list of the files, which should be all the angles
-    files = localFileList_ANITA3chamberHPol()
-    channel = 1
-    eventAvgs = 50
-    rotate="phi"
+    if pol=="H":
+        files = localFileList_ANITA3chamberHPol()
+        rotate="phi"
+        channel = 1
+    if pol=="V":
+        files = localFileList_ANITA3chamberVPol()
+        rotate="theta"
+        channel = 0
 
 
     freqs = []
@@ -1102,79 +1125,37 @@ def doOffAngle():
 
     #get the complex antenna height from tff.doPalAnt's results
     #also note that I am cutting the end off so it is only 1000 points long
-    antHeightX,antHeightY = np.loadtxt("/Users/brotter/benCode/impulseResponse/integratedTF/transferFunctions/antHeight_avg.txt")[:1000].T
-    antHeightF,antHeightFFT = tf.genFFT(antHeightX,antHeightY)
+    # -> This doesn't work because the chamber measurements are shitty at low end so it messes the whole thing up
+    palAntHeightX,palAntHeightY = np.loadtxt("/Users/brotter/benCode/impulseResponse/integratedTF/transferFunctions/antHeight_avg.txt")[:1000].T
+    palAntHeightF,palAntHeightFFT = tf.genFFT(palAntHeightX,palAntHeightY)
 
-    boresight = files.pop(4)
-    print boresight
-    print files
 
-    return
+    #grab the CHAMBER boresight and use that I guess
+    boresight = files[4]
+    antHeightF,antHeightFFT = offAngleLoop2(boresight,[inPulseF,inPulseFFT],channel)
+
+
+    if debug:
+        fig,ax = lab.subplots()
+        ax.plot(antHeightF,tf.calcAntGain(antHeightF,antHeightFFT),label="chamber",color="red")
+        ax.plot(palAntHeightF,tf.calcAntGain(palAntHeightF,palAntHeightFFT),label="palestine",color="blue")
+        ax.set_xlabel("Frequency (GHz)")
+        ax.set_ylabel("Antenna Gain (dBi)")
+        ax.legend()
+        fig.show()
+
 
     #loop over all the files
     for file in files:
-        #import all the events from that file (it is stored with a ton of events in it)
-        events = importAll(file,channel=channel)
-        print "doOffAngle(): ",file," has number of events:",len(events)
-        fftAvgs = len(events)/eventAvgs
-        print "doOffAngle(): doing ",fftAvgs," fft averages"
-        #so first I average together a bunch of events, then I average the FFTs of the transfer functions together?
-        for fftAvgNum in range(0,fftAvgs):
-            #get the averaged waveform
-            avgEventX,avgEventY = tf.correlateAndAverage(events[eventAvgs*fftAvgNum:eventAvgs*(fftAvgNum+1)])
-            avgEventX *= 1e9
-            #also sampled too fast, so lets just do the FFT trick to downsample it again
-            avgEventF,avgEventFFT = tf.genFFT(avgEventX,avgEventY)
-            avgEventF   = avgEventF[:1001]
-            avgEventFFT = avgEventFFT[:1001]
-            avgEventX,avgEventY = tf.genTimeSeries(avgEventF,avgEventFFT)
-            #it is also too long
-            avgEventX = avgEventX[:1000]
-            avgEventY = avgEventY[:1000]
-            print len(avgEventX),len(avgEventY)
-            avgEventF,avgEventFFT = tf.genFFT(avgEventX,avgEventY)
-            print len(avgEventF),len(avgEventFFT)
-            if debug:
-                print "doOffAngle(): avgEvent length: ",len(avgEventX)," dT:",avgEventX[1]-avgEventX[0]
-                print "doOffAngle(): antHeight length: ",len(antHeightX)," dT:",antHeightX[1]-antHeightX[0]
-                print "doOffAngle(): inPulse length: ",len(inPulseX)," dT:",inPulseX[1]-inPulseX[0]
 
-                print "doOffAngle(): avgEventFFT length: ",len(avgEventF),"/",len(avgEventFFT)," dF:",avgEventF[1]-avgEventF[0]
-                print "doOffAngle(): antHeightFFT length: ",len(antHeightF),"/",len(antHeightFFT)," dF:",antHeightF[1]-antHeightF[0]
-                print "doOffAngle(): inPulseFFT length: ",len(inPulseF),"/",len(inPulseFFT)," dF:",inPulseF[1]-inPulseF[0]
-            #find its peak (with some offset for some reason)
-            peak = np.argmax(np.abs(avgEventY[1])) + 500
-            print "I'M CRAB V.v.V ",fftAvgNum #for fun
+        transFuncF,transFuncFFT = offAngleLoop2(file,[inPulseF,inPulseFFT],channel,antHeight=[antHeightF,antHeightFFT])
 
-            #generate the antenna height for the rotating antenna using the equation
-            # H(RX) = (c*r*F(rec)) / (i*f*F(src)*H(TX))
-            # F(rec) == avgEvent
-            # F(src) == inPulse
-            # H(TX) == antHeight
-
-            #also gotta get a new "distance" array, face is at 5.6m for this one dawg
-            distM = (0.5588*2)/(1.2-0.18)
-            distYint = 5.6 - distM*0.18
-            dist = avgEventF*distM + distYint
-            for i in range(0,len(dist)):
-                if dist[i] > 8.5:
-                    dist[i] = 8.5
-                    
-
-
-            transFuncF = avgEventF
-            transFuncFFT = (0.3*dist*avgEventFFT) / (1j * transFuncF * inPulseFFT * antHeightFFT)
-            transFuncX,transFuncY = tf.genTimeSeries(transFuncF,transFuncFFT)
-
-            logMag = tf.calcLogMag(transFuncF,transFuncFFT)
-
-            if fftAvgNum == 0:
-                logMagAvg = logMag/fftAvgs
-            else:
-                logMagAvg += logMag/fftAvgs
+        logMagAvg = tf.calcAntGain(transFuncF,transFuncFFT)
+        
 
         mags.append(logMagAvg)
         allMags.append(logMagAvg)
+
 
         if rotate=="phi":
             angles.append(file.split("/")[-1].split("_")[1][1:4])
@@ -1184,4 +1165,205 @@ def doOffAngle():
 
 
 
-    return angles,transFuncF,allMags
+    return angles,transFuncF,allMags,tf.calcAntGain(antHeightF,antHeightFFT)
+
+
+
+
+def offAngleLoop2(file,inPulse,channel,antHeight=[]):
+    """
+    the thing in doOffAngle that gets the waveform and processes it
+
+    The main one was doing an fft average on top of time averaging, and I want to try without that
+
+    -> Nope, doesn't help
+
+    """
+
+    inPulseF,inPulseFFT = inPulse
+    inPulseX,inPulseY = tf.genTimeSeries(inPulseF,inPulseFFT)
+
+    if len(antHeight) != 0:
+        antHeightF,antHeightFFT = antHeight
+        antHeightX,antHeightY = tf.genTimeSeries(antHeightF,antHeightFFT)
+    
+
+    #import all the events from that file (it is stored with a ton of events in it)
+    events = importAll(file,channel=channel)
+    print "doOffAngle(): ",file," has number of events:",len(events)
+
+    avgEventX,avgEventY = tf.correlateAndAverage(events)
+    avgEventX *= 1e9
+    #also sampled too fast, so lets just do the FFT trick to downsample it again
+    avgEventF,avgEventFFT = tf.genFFT(avgEventX,avgEventY)
+    avgEventF   = avgEventF[:1001]
+    avgEventFFT = avgEventFFT[:1001]
+    avgEventX,avgEventY = tf.genTimeSeries(avgEventF,avgEventFFT)
+    #it is also too long
+    avgEventX = avgEventX[:1000]
+    avgEventY = avgEventY[:1000]
+    avgEventF,avgEventFFT = tf.genFFT(avgEventX,avgEventY)
+    if debug:
+        print "doOffAngle(): avgEvent length: ",len(avgEventX)," dT:",avgEventX[1]-avgEventX[0]
+        if len(antHeight) != 0: print "doOffAngle(): antHeight length: ",len(antHeightX)," dT:",antHeightX[1]-antHeightX[0]
+        print "doOffAngle(): inPulse length: ",len(inPulseX)," dT:",inPulseX[1]-inPulseX[0]
+            
+        print "doOffAngle(): avgEventFFT length: ",len(avgEventF),"/",len(avgEventFFT)," dF:",avgEventF[1]-avgEventF[0]
+        if len(antHeight) != 0: print "doOffAngle(): antHeightFFT length: ",len(antHeightF),"/",len(antHeightFFT)," dF:",antHeightF[1]-antHeightF[0]
+        print "doOffAngle(): inPulseFFT length: ",len(inPulseF),"/",len(inPulseFFT)," dF:",inPulseF[1]-inPulseF[0]
+        
+    #generate the transfer function
+    if len(antHeight) == 0:
+        transFuncF,transFuncFFT = doChamberIdenticalTF(avgEventF,avgEventFFT,inPulseFFT)
+    else:
+        transFuncF,transFuncFFT = doChamberRotatedTF(avgEventF,avgEventFFT,inPulseFFT,antHeightFFT)
+        
+
+
+    return transFuncF,transFuncFFT
+
+
+
+def offAngleLoop(file,inPulse,channel,antHeight=[]):
+
+    """
+    Theres a loop in doOffAngle that I want to split out
+
+    antHeightFFT: boresight complex antenna height
+    for identical antennas dont set this parameter and it will treat them as identical
+    for rotated antennas, set this to the boresight complex antenna height and it will determine the rotated height
+
+    """
+
+
+    inPulseF,inPulseFFT = inPulse
+    inPulseX,inPulseY = tf.genTimeSeries(inPulseF,inPulseFFT)
+
+    if len(antHeight) != 0:
+        antHeightF,antHeightFFT = antHeight
+        antHeightX,antHeightY = tf.genTimeSeries(antHeightF,antHeightFFT)
+    
+
+    #import all the events from that file (it is stored with a ton of events in it)
+    events = importAll(file,channel=channel)
+    print "doOffAngle(): ",file," has number of events:",len(events)
+    fftAvgs = len(events)/eventAvgs
+    print "doOffAngle(): doing ",fftAvgs," fft averages"
+    #so first I average together a bunch of events, then I average the FFTs of the transfer functions together?
+    for fftAvgNum in range(0,fftAvgs):
+        #get the averaged waveform
+        avgEventX,avgEventY = tf.correlateAndAverage(events[eventAvgs*fftAvgNum:eventAvgs*(fftAvgNum+1)])
+        avgEventX *= 1e9
+        #also sampled too fast, so lets just do the FFT trick to downsample it again
+        avgEventF,avgEventFFT = tf.genFFT(avgEventX,avgEventY)
+        avgEventF   = avgEventF[:1001]
+        avgEventFFT = avgEventFFT[:1001]
+        avgEventX,avgEventY = tf.genTimeSeries(avgEventF,avgEventFFT)
+        #it is also too long
+        avgEventX = avgEventX[:1000]
+        avgEventY = avgEventY[:1000]
+        print len(avgEventX),len(avgEventY)
+        avgEventF,avgEventFFT = tf.genFFT(avgEventX,avgEventY)
+        print len(avgEventF),len(avgEventFFT)
+        if debug:
+            print "doOffAngle(): avgEvent length: ",len(avgEventX)," dT:",avgEventX[1]-avgEventX[0]
+            if len(antHeight) != 0: print "doOffAngle(): antHeight length: ",len(antHeightX)," dT:",antHeightX[1]-antHeightX[0]
+            print "doOffAngle(): inPulse length: ",len(inPulseX)," dT:",inPulseX[1]-inPulseX[0]
+            
+            print "doOffAngle(): avgEventFFT length: ",len(avgEventF),"/",len(avgEventFFT)," dF:",avgEventF[1]-avgEventF[0]
+            if len(antHeight) != 0: print "doOffAngle(): antHeightFFT length: ",len(antHeightF),"/",len(antHeightFFT)," dF:",antHeightF[1]-antHeightF[0]
+            print "doOffAngle(): inPulseFFT length: ",len(inPulseF),"/",len(inPulseFFT)," dF:",inPulseF[1]-inPulseF[0]
+        #find its peak (with some offset for some reason)
+        peak = np.argmax(np.abs(avgEventY[1])) + 500
+        print "I'M CRAB V.v.V ",fftAvgNum #for fun
+
+        #generate the transfer function
+        if len(antHeight) == 0:
+            transFuncF,transFuncFFT = doChamberIdenticalTF(avgEventF,avgEventFFT,inPulseFFT)
+        else:
+            transFuncF,transFuncFFT = doChamberRotatedTF(avgEventF,avgEventFFT,inPulseFFT,antHeightFFT)
+        
+
+        if fftAvgNum == 0:
+            fftAvg = transFuncFFT/fftAvgs
+        else:
+            fftAvg += transFuncFFT/fftAvgs
+
+    return transFuncF,fftAvg
+
+
+def makeChamberDistanceArray(avgEventF):
+
+    #also gotta get a new "distance" array, face is at 5.6m for this one dawg
+    distM = (0.5588*2)/(1.2-0.18)
+    distYint = 5.6 - distM*0.18
+    dist = avgEventF*distM + distYint
+    for i in range(0,len(dist)):
+        if dist[i] > 8.5:
+            dist[i] = 8.5
+
+    return dist
+
+
+def doChamberIdenticalTF(avgEventF,avgEventFFT,inPulseFFT):
+    """
+    generate the antenna height for the rotating antenna using the equation
+     H(RX) = sqrt[(c*r*F(rec)) / (i*f*F(src))]
+     F(rec) == avgEvent
+     F(src) == inPulse
+     H(TX) == antHeight
+    """
+
+    dist = makeChamberDistanceArray(avgEventF)
+    
+    transFuncF = avgEventF
+    transFuncFFT = (0.3*dist*avgEventFFT) / (1j * transFuncF * inPulseFFT)
+    transFuncFFT[:2] = np.zeros(2)#these are garbage for some reason
+
+    print transFuncFFT[50:70]
+    
+    transFuncFFT = tf.sqrtOfFFT1(transFuncFFT)
+
+    print transFuncFFT[50:70]
+
+    return transFuncF,transFuncFFT
+    
+    
+
+
+def doChamberRotatedTF(avgEventF,avgEventFFT,inPulseFFT,antHeightFFT):
+    """
+    generate the antenna height for the rotating antenna using the equation
+     H(RX) = (c*r*F(rec)) / (i*f*F(src)*H(TX))
+     F(rec) == avgEvent
+     F(src) == inPulse
+     H(TX) == antHeight
+    """
+
+    dist = makeChamberDistanceArray(avgEventF)
+
+    transFuncF = avgEventF
+    transFuncFFT = (0.3*dist*avgEventFFT) / (1j * transFuncF * inPulseFFT * antHeightFFT)
+
+    return transFuncF,transFuncFFT
+
+
+
+def plotOffAngle(ang,freq,mag,bore):
+
+    fig,ax = lab.subplots()
+    
+    ax.set_xlabel("Frequency (GHz)")
+    ax.set_ylabel("Antenna Gain (dBi)")
+    
+
+    for i in range(0,len(ang)):
+        ax.plot(freq,mag[i],label=ang[i])
+
+    ax.plot(freq,bore,label="boresight",lw=4,color="black")
+
+    ax.legend()
+
+    fig.show()
+
+    return fig,ax

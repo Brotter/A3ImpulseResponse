@@ -57,11 +57,11 @@ def plotSingleData(data,title=""):
 
 
 
-def plotAll():
+def plotAll(savePlot=False):
 
-    sns.set_palette(sns.color_palette("husl",5))
+    sns.set_palette(sns.color_palette("husl",5)[::-1])
 
-    fig,ax = lab.subplots(1,2)
+    fig,ax = lab.subplots(1,2,figsize=[11,8.5])
     fig.suptitle("ANITA3/4 Seavey Factory Antenna Data")
 
 
@@ -86,8 +86,8 @@ def plotAll():
     ax[0].set_xlim([-60,60])
     ax[1].set_xlim([-60,60])
 
-    ax[0].set_ylim([-6,0])
-    ax[1].set_ylim([-6,0])
+    ax[0].set_ylim([-6,0.2])
+    ax[1].set_ylim([-6,0.2])
 
     ax[0].set_xlabel("Degrees From Boresight")
     ax[1].set_xlabel("Degrees From Boresight")
@@ -95,9 +95,10 @@ def plotAll():
     ax[0].set_ylabel("Gain from Maximum (dB)")
     ax[1].set_ylabel("Gain from Maximum (dB)")
 
-    ax[0].legend()
-    ax[1].legend()
+    ax[1].legend(frameon=True,bbox_to_anchor=(1.2,1))
 
+    if savePlot:
+        fig.savefig("seaveyDataPlotter.pdf")
 
 
 

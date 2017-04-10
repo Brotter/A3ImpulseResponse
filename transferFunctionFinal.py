@@ -772,6 +772,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
     tfFFT[np.isneginf(np.real(tfFFT))] = 0
     tfFFT = np.nan_to_num(tfFFT)
     tfFFT[tfFFT > 1e10] = 0
+    tfFFT[tfFFT < -1e10] = 0
 
 #    return surfFFT,ampaInputFFT,tfFFT
 
@@ -1539,12 +1540,18 @@ def saveAllNicePlots(allChans):
         fig.savefig("autoPlots/"+chan+".png")
 
 
-def plotCompare(allChans,savePlots=False,ant=False):
+def plotCompare(allChans,savePlots=False,ant=False,sig=False):
     """
       Plot a comparison of all the channels in a way that is sort of easy to see
       Also has a good way to exclude channels that you think are "bad" (so you
       can fix them later of course)
     """
+
+    try:
+        sns.set_palette(sns.color_palette("husl", n_colors=16)[::-1])
+    except:
+        print "couldn't set palette"
+        pass
 
     lab.close("all")
 
@@ -1559,12 +1566,6 @@ def plotCompare(allChans,savePlots=False,ant=False):
 
     axFFTV[2].set_xlabel("Frequency (GHz)")
     axFFTV[1].set_ylabel("Gain (dB)")
-
-    try:
-        sns.set_palette("viridis", n_colors=16)
-    except:
-        print "couldn't set palette"
-        pass
 
     chans = allChans.keys()
     chans.sort()
@@ -1596,7 +1597,7 @@ def plotCompare(allChans,savePlots=False,ant=False):
             waveY = np.roll(waveY,-argMax)
             
         f,fft = tf.genFFT(waveX,waveY)
-        logMag = 10*np.log10(np.abs(fft)**2)
+        logMag = tf.calcLogMag(f,fft)
         
 #        if any(x for x in badChans if chan in x):
 #            continue
@@ -1638,17 +1639,35 @@ def plotCompare(allChans,savePlots=False,ant=False):
     axFFTV[2].set_title("Bottom")
     axFFTH[2].set_title("Bottom")
 
-    axV[0].set_xlim([0,20])
-    axH[0].set_xlim([0,20])
+    axV[0].set_xlim([0,30])
+    axH[0].set_xlim([0,30])
 
     axV[2].set_xlabel("Time (ns)")
     axH[2].set_xlabel("Time (ns)")
-    axV[2].set_xticks(np.arange(0,20,1))
-    axH[2].set_xticks(np.arange(0,20,1))
+    axV[2].set_xticks(np.arange(0,30,1))
+    axH[2].set_xticks(np.arange(0,30,1))
 
+    if ant:
+        axV[1].set_ylabel("Effective antenna height (m)")
+        axH[1].set_ylabel("Effective antenna height (m)")
 
-    axV[1].set_ylabel("Effective antenna height (m/ns)")
-    axH[1].set_ylabel("Effective antenna height (m/ns)")
+        axFFTH[1].set_ylabel("Effective antenna height $(log_{10}(m))$")
+        axFFTV[1].set_ylabel("Effective antenna height $(log_{10}(m))$")
+
+    elif sig:
+        axV[1].set_ylabel("Gain (unitless)")
+        axH[1].set_ylabel("Gain (unitless)")
+        
+        axFFTH[1].set_ylabel("Gain (dB)")
+        axFFTV[1].set_ylabel("Gain (dB)")
+
+    elif tf:
+        axV[1].set_ylabel("Normalized instrument height (m)")
+        axH[1].set_ylabel("Normalized instrument height (m)")
+        
+        axFFTH[1].set_ylabel("Normalized instument height  $(log_{10}(m))$")
+        axFFTV[1].set_ylabel("Normalized instrument height $(log_{10}(m))$")
+
 
     axFFTV[0].set_xlim([0,2])
     axFFTH[0].set_xlim([0,2])
@@ -1656,19 +1675,25 @@ def plotCompare(allChans,savePlots=False,ant=False):
     axFFTV[2].set_xlabel("Frequency (GHz)")
     axFFTH[2].set_xlabel("Frequency (GHz)")
 
-    axFFTH[1].set_ylabel("Effective antenna height log(m/ns)")
-    axFFTH[1].set_ylabel("Effective antenna height log(m/ns)")
-
+    
 
     for i in range(0,3):
-        axFFTV[i].set_ylim([0,55])
-        axFFTH[i].set_ylim([0,55])
+        if ant:
+            axFFTV[i].set_ylim([-30,5])
+            axFFTH[i].set_ylim([-30,5])
+        elif sig:
+            axFFTV[i].set_ylim([30,65])
+            axFFTH[i].set_ylim([30,65])
+        else:
+            axFFTV[i].set_ylim([15,50])
+            axFFTH[i].set_ylim([15,50])
 
-    axV[1].legend(frameon=True,ncol=2)
-    axH[1].legend(frameon=True,ncol=2)
 
-    axFFTV[0].legend(frameon=True,ncol=2)
-    axFFTH[0].legend(frameon=True,ncol=2)
+    axV[0].legend(frameon=True,ncol=2,bbox_to_anchor=(1.1,1.3))
+    axH[0].legend(frameon=True,ncol=2,bbox_to_anchor=(1.1,1.3))
+
+    axFFTV[0].legend(frameon=True,ncol=2,bbox_to_anchor=(1.1,1.3))
+    axFFTH[0].legend(frameon=True,ncol=2,bbox_to_anchor=(1.1,1.3))
 
     figV.show()
     figH.show()
@@ -1676,10 +1701,10 @@ def plotCompare(allChans,savePlots=False,ant=False):
     figFFTH.show()
 
     if savePlots:
-        figV.savefig("plotCompare_timeV.png")
-        figH.savefig("plotCompare_timeH.png")
-        figFFTV.savefig("plotCompare_fftV.png")
-        figFFTH.savefig("plotCompare_fftH.png")
+        figV.savefig("plotCompare_timeV.pdf")
+        figH.savefig("plotCompare_timeH.pdf")
+        figFFTV.savefig("plotCompare_fftV.pdf")
+        figFFTH.savefig("plotCompare_fftH.pdf")
 
                 
     return
@@ -1701,17 +1726,17 @@ def plotAntennaGain(allAnts,savePlots=False):
     for chan in allAnts:
         x,y = allAnts[chan]
         f,fft = tf.genFFT(x,y)
-        gainTF = ((4*np.pi*f**2)/(0.3**2))*np.abs(fft)**2
+        gainTF = tf.calcAntGain(f,fft)
 
 
         if chan == "01BH":
-            axGain.plot(f,10*np.log10(gainTF),label="H",color="red")
+            axGain.plot(f,gainTF,label="H",color="red")
         if chan == "01BV":
-            axGain.plot(f,10*np.log10(gainTF),label="V",color="blue")
+            axGain.plot(f,gainTF,label="V",color="blue")
         if chan[-1] == "H":
-            axGain.plot(f,10*np.log10(gainTF),color="red")
+            axGain.plot(f,gainTF,color="red")
         if chan[-1] == "V":
-            axGain.plot(f,10*np.log10(gainTF),color="blue")
+            axGain.plot(f,gainTF,color="blue")
 
 
     axGain.legend()
