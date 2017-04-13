@@ -1367,3 +1367,8 @@ def plotOffAngle(ang,freq,mag,bore):
     fig.show()
 
     return fig,ax
+
+
+
+def compChambVsPalestine():
+    

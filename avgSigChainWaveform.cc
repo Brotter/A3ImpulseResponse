@@ -316,7 +316,7 @@ TGraph* surfParseAndAverage(string antName) {
     lenEntries = headTree->GetEntries();
     cout << "headTree and eventTree have a different number of entries..." << endl;
     cout << "headTree:" << headTree->GetEntries() << " eventTree:" << eventTree->GetEntries();  }
-
+3
   
   //define how many waveforms we are going to average together
   const int numEntries = 1024;
