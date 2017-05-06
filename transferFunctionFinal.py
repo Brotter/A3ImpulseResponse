@@ -2132,3 +2132,92 @@ def plotSavedFiles(baseName="avgSurfWaveform",dir="waveforms_new"):
     fig.show()
 
     return allChans
+
+
+
+
+def plotSavedChannelWithMean(chan,prefix="transferFunctions/normSigChain_"):
+
+    inFileName = prefix+chan+".txt"
+
+    data = np.loadtxt(inFileName).T
+    f,logMag = tf.genLogMag(data[0],data[1])    
+
+    mean = 10*np.log10(np.mean(10**(logMag/10.)))
+    print "mean=",mean
+    
+    fig,ax = lab.subplots()
+    ax.set_title(chan)
+    ax.set_xlabel("Frequency (GHz)")
+    ax.set_ylabel("Gain (dB)")
+    ax.plot(f,logMag,label="Full",color="black")
+    ax.plot(f[15:115],logMag[15:115],label="1GHz Mean for RMS power",color="red")
+    ax.legend()
+
+
+    fig.show()
+
+    return
+
+
+
+def slidingMeanWindow(chan,prefix="transferFunctions/normSigChain_"):
+    
+    inFileName = prefix+chan+".txt"
+
+    data = np.loadtxt(inFileName).T
+    
+    startFreqs=[]
+    means=[]
+    num = 100
+    for i in range(0,100):
+        f,logMag = tf.genLogMag(data[0],data[1])
+        startFreqs.append(f[i])
+        means.append(np.mean(10**((logMag[i:i+100])/10.)))
+    
+
+    print np.max(10*np.log10(means))
+
+    fig,ax = lab.subplots()
+    ax.plot(startFreqs,10*np.log10(means),color="blue")
+    ax.set_title("Average Signal Chain Transfer Function Power Gain "+chan)
+    ax.set_ylabel("Average Gain (dB)")
+    ax.set_xlabel("Start Frequency (GHz)")
+    fig.show()
+
+
+
+
+def rmsThermalNoise():
+
+    kB = 1.38e-23 #J/K
+    R = 50
+#    B = np.arange(0,150)*(1e9/100)
+#    R = np.arange(0,50)
+    B = 1e9
+
+    Tfig = np.arange(0,100)
+    T0 = 290+Tfig
+#    Vout0 = 12.75 #from UsefulAnitaEvent::rms
+    Vout0 = 27.17 #from TGraph::GetRMS(2)
+
+    T1 = 1206+Tfig
+#    Vout1 = 23.75 #from UsefulAnitaEvent::rms
+    Vout1 = 51.36 #from TGraph::GetRMS(2)
+    
+
+        
+    V0 = np.sqrt(4*kB*T0*R*B)*1000.
+    V1 = np.sqrt(4*kB*T1*R*B)*1000.
+    
+    G0 = 20.*np.log10(Vout0/V0)
+    G1 = 20.*np.log10(Vout1/V1)
+
+
+    fig,ax = lab.subplots()
+    ax.plot(Tfig,G0)
+    ax.plot(Tfig,G1)
+    ax.set_title("Johnson-Nyquist Noise for 10BV noise diode calib data")
+    ax.set_xlabel("Bandwidth (Hz)")
+    ax.set_ylabel("Gain")
+    fig.show()
