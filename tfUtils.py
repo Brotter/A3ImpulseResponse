@@ -240,8 +240,11 @@ def hanningTail(inYArray,start,slope):
     """
     
     outYArray = copy.deepcopy(inYArray)
+    print len(inYArray),len(outYArray)
     for pt in range(0,len(inYArray)):
         if pt<=start:
+            outYArray[pt] = inYArray[pt]
+            print pt,inYArray[pt],outYArray[pt]
             continue
         if pt>start and pt<=start+slope: 
             pt_corr = pt - start

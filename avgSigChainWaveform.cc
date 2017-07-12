@@ -46,7 +46,7 @@ void printDT(TGraph* inGraph,string note = "") {
 
 
 
-TGraph* scopeParseAndAverage(int run) {
+TGraph* scopeParseAndAverage(int run,int chan,int numEntries=248) {
 
   //set where the antenna response scope waveform is
   stringstream inputFile,inputDir;
@@ -66,7 +66,6 @@ TGraph* scopeParseAndAverage(int run) {
 
 
   //set up for correlating and averaging
-  const int numEntries = 248;
   TGraph* waveGraphs[numEntries];
 
 
@@ -77,7 +76,7 @@ TGraph* scopeParseAndAverage(int run) {
     inputFile.str("");
     inputFile << inputDir.str() << "wave_" << entry+1;
     
-    waveGraphs[entry] = getScopeGraph(inputFile.str(),0);
+    waveGraphs[entry] = getScopeGraph(inputFile.str(),chan);
     
   }
   cout << "scopeParseAndAverage():got all the graphs I wanted" << endl;
@@ -133,7 +132,7 @@ int findCalRun(string name) {
   int runNum = -1;
   ifstream runLogFile;
   runLogFile.open("runLog56dB.txt");
-  if (!runLogFile) cout << "didn't open file?" << endl;
+  if (!runLogFile) cout << "didn't open runlog file? check if runLog56dB.txt exists" << endl;
 
   int pos = 0;
   string subLine;
@@ -316,7 +315,7 @@ TGraph* surfParseAndAverage(string antName) {
     lenEntries = headTree->GetEntries();
     cout << "headTree and eventTree have a different number of entries..." << endl;
     cout << "headTree:" << headTree->GetEntries() << " eventTree:" << eventTree->GetEntries();  }
-3
+
   
   //define how many waveforms we are going to average together
   const int numEntries = 1024;
@@ -344,7 +343,7 @@ TGraph* surfParseAndAverage(string antName) {
     if (event->getLabChip(chanIndex) != 0) continue;
 
     //get calibrated event
-    UsefulAnitaEvent *useful = new UsefulAnitaEvent(event,WaveCalType::kOnlyTiming,head);
+    UsefulAnitaEvent *useful = new UsefulAnitaEvent(event,WaveCalType::kFull,head);
 
     //Get calibrated waveform for the channel of interest
     TGraph *calibGraph = useful->getGraph(ring,phi-1,pol);
@@ -452,6 +451,8 @@ int main(int argc, char** argv) {
 
   string antName;
 
+  string suffix = "";
+
   if (argc == 1) {
     cout << "Using default channel of 09BH" << endl;
     antName = "09BH";
@@ -460,25 +461,36 @@ int main(int argc, char** argv) {
     cout << "Using " << argv[1] << " as channel" << endl;
     antName = argv[1];
   }
+  else if (argc == 3) {
+    cout << "Using " << argv[1] << " as channel" << endl;
+    antName = argv[1];
+    suffix = argv[2];
+    cout << "Appending " << suffix << " to filename" << endl;
+  }
   else {
-    cout << "Usage: " << argv[0] << " channelName (eg:09BH)" << endl;
+    cout << "Usage: " << argv[0] << " [channelName (eg:09BH)] [opt: suffix]" << endl;
   }
 
   int calRun =findCalRun(antName);
 
-  //Get the two pulses
-  TGraph *waveGraphScope = scopeParseAndAverage(calRun);
+  //Get the two pulses - and one more for the trigger!
+  TGraph *waveGraphScope = scopeParseAndAverage(calRun,0);
   cout << "Got Scope Waveforms!" << endl;
   TGraph *waveGraphSurf = surfParseAndAverage(antName);
   cout << "Got Surf Waveforms!" << endl;
+  TGraph *waveGraphTrig = scopeParseAndAverage(calRun,1);
+  waveGraphTrig->SetName("waveGraphTrig");
+  cout << "Got Trigger Waveforms!" << endl;
 
   //save them to a .txt file
   ofstream outStream;
   stringstream fileName;
   //Surf
   fileName.str("");
-  fileName << outDir << antName << "_avgSurfWaveform.txt";
-  outStream.open(fileName.str());
+  fileName << outDir << antName << "_avgSurfWaveform";
+  if (suffix != "") fileName << "_" << suffix;
+  fileName << ".txt";
+   outStream.open(fileName.str());
   for (int pt=0; pt<waveGraphSurf->GetN(); pt++) {
     outStream << waveGraphSurf->GetX()[pt] << " " << waveGraphSurf->GetY()[pt] << endl;
   }
@@ -486,19 +498,24 @@ int main(int argc, char** argv) {
 
   //Scope 
   fileName.str("");
-  fileName << outDir << antName << "_avgScopeWaveform.txt";
+  fileName << outDir << antName << "_avgScopeWaveform";
+  if (suffix != "") fileName << "_" << suffix;
+  fileName << ".txt";  
   outStream.open(fileName.str());
   for (int pt=0; pt<waveGraphScope->GetN(); pt++) {
-    outStream << waveGraphScope->GetX()[pt] << " " << waveGraphScope->GetY()[pt] << endl;
+    outStream << waveGraphScope->GetX()[pt] << " " << waveGraphScope->GetY()[pt] << " " << waveGraphTrig->GetY()[pt] << endl;
   }
   outStream.close();
 
   //save them to a .root file
   fileName.str("");
-  fileName << outDir << antName << "_avgWaveforms.root";
+  fileName << outDir << antName << "_avgWaveforms";
+  if (suffix != "") fileName << "_" << suffix;
+  fileName << ".root";  
   TFile *rootFile = TFile::Open(fileName.str().c_str(),"recreate");
   waveGraphSurf->Write();
   waveGraphScope->Write();
+  waveGraphTrig->Write();
   rootFile->Close();
 
 
