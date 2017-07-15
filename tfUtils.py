@@ -75,9 +75,12 @@ def genTimeArray(graphF):
 def calcAntGain(f,fft):
     """
     Calculates the antenna gain relative to an isotropic emitter
+    
+    g(eff) = (4*pi*f^2)/(c^2) * h^2
+
     """
 
-    return 10*np.log10((4*np.pi*f**2)/(0.3**2)*np.abs(fft)**2)
+    return 10*np.log10( ((4*np.pi*f**2)/(0.3**2)) *np.abs(fft)**2 )
 
 
 def genLogMag(graphX,graphY):
