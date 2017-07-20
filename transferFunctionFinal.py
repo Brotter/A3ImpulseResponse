@@ -57,6 +57,8 @@ localDir = "../calibrationLinks/"
 cablesBaseDir = localDir + "antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
 #cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
 palCablesBaseDir = localDir + "palestine14/SeaveyAntennas/S21s/"
+palAntS11sDir = localDir + "palestine14/SeaveyAntennas/S11s/"
+
 
 # Signal chain data (57dB seems to be a happy middle power).
 waveformDir = localDir + "waveforms/"
@@ -396,6 +398,15 @@ def s2pParser(fileName):
                 
     return np.array(freq),np.array(gainLog,dtype=float),np.array(phase)
 
+
+def s11Parser(fileName):
+
+    data = np.genfromtxt(fileName,delimiter=",",comments="!",skip_footer=1,skip_header=18).T
+    
+    f = data[0]
+    fft = data[1] + data[2]*1j
+
+    return f,fft
 
 #==============================================================================
 # Processing
@@ -1173,13 +1184,13 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
             fig0.savefig("plots/doPalAnt_inAndOut"+chan+".png")
 
 
-    #computeTF?  hmm maybe just do a normal one
     """
     This does the (F_rec/F_src)*(c/if) calculation
     ends up being in units of "meters"
     """
 
     antTFFFT = np.divide(outFFT,inFFT)*(0.3/(1j*inF))
+#    antTFFFT = np.divide(outFFT,inFFT)
     antTFFFT[0] = 0
 
     antTFF = inF
@@ -1257,7 +1268,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
     #Produce a plot for the gain normalized to dBi (hence the 4pi)
     if showPlots or savePlots:
-        gainTF = ((4*np.pi*antTFF**2)/(0.3**2))*np.abs(antTFFFT)**2
+        gainTF = calcAntGain(antTFF,antTFFFT)
         figGain,axGain = lab.subplots()
         figGain.suptitle(chan)
         axGain.plot(antTFF,10*np.log10(gainTF)) #10 instead of 20 because... its a power gain already I htink
@@ -2028,6 +2039,40 @@ def plotAntennaGain(allAnts,savePlots=False):
         figGain.savefig("plots/doPalAnt_AntGain"+chan+".png")
         
 
+
+def plotAntennaFactor(allAnts,savePlots=False):
+
+    #Produce a plot for the gain normalized to dBi (hence the 4pi)
+    
+    figGain,axGain = lab.subplots()
+    figGain.suptitle("ANITA3 Antenna Factor")
+    
+    axGain.set_ylabel("Antenna Factor (1/m)")
+    axGain.set_xlabel("Frequency (GHz)")
+    axGain.set_ylim([-10,20])
+    axGain.set_xlim([0,3])
+
+    for chan in allAnts:
+        x,y = allAnts[chan]
+        f,fft = tf.genFFT(x,y)
+        gainTF = tf.calcAntFactor(f,fft)
+
+
+        if chan == "01BH":
+            axGain.plot(f,gainTF,label="H",color="red")
+        if chan == "01BV":
+            axGain.plot(f,gainTF,label="V",color="blue")
+        if chan[-1] == "H":
+            axGain.plot(f,gainTF,color="red")
+        if chan[-1] == "V":
+            axGain.plot(f,gainTF,color="blue")
+
+
+    axGain.legend()
+    figGain.show()
+
+    if savePlots:
+        figGain.savefig("plots/doPalAnt_AntFactor"+chan+".png")
 
 
 def plotOneAtATime(allChans):
