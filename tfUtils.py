@@ -72,12 +72,46 @@ def genTimeArray(graphF):
 
     return np.arange(0,tMax,dT)
 
-def calcAntGain(f,fft):
+
+def calcLinAntGain(f,fft):
     """
     Calculates the antenna gain relative to an isotropic emitter
+    
+    g(eff) = (4*pi*f^2)/(c^2) * h^2
+
+    This is linear
+
+    log(this) = dBi
+    also useful in antenna factor
+
+    """
+    
+    return  ( (4*np.pi*f**2)/(0.3**2) ) * np.abs(fft)**2
+
+
+def calcAntGain(f,fft):
     """
 
-    return 10*np.log10((4*np.pi*f**2)/(0.3**2)*np.abs(fft)**2)
+    Log of linAntGain
+    
+    """
+
+    return 10*np.log10(calcLinAntGain(f,fft))
+
+def calcAntFactor(f,fft):
+    """
+    Calculates the "antenna factor" , which according to wikipedia:  AF = E/V so it should help me convert to e-field
+
+    AF = E/V = 9.73/(wavelength*sqrt(G))
+
+    wavelength = c/f (m/s / 1/s = m)
+
+    G is "antenna gain" which I can only assume is a linear dBi (ratio to isotropic) value
+
+    """
+
+    return 9.73/( 3e8/(f*1e9) * np.sqrt(calcLinAntGain(f,fft)))
+
 
 
 def genLogMag(graphX,graphY):
@@ -240,8 +274,11 @@ def hanningTail(inYArray,start,slope):
     """
     
     outYArray = copy.deepcopy(inYArray)
+    print len(inYArray),len(outYArray)
     for pt in range(0,len(inYArray)):
         if pt<=start:
+            outYArray[pt] = inYArray[pt]
+            print pt,inYArray[pt],outYArray[pt]
             continue
         if pt>start and pt<=start+slope: 
             pt_corr = pt - start

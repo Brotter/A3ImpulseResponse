@@ -9,9 +9,9 @@
 #
 ###################################################
 
-
+suffix=${1}
 
 for ant in `cat chanList.txt`; do
-    ./avgSigChainWaveform ${ant} >> allChannels.log 2>&1
+    ./avgSigChainWaveform ${ant} ${suffix}
 done
     

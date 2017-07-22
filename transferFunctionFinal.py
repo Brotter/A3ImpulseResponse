@@ -56,6 +56,9 @@ localDir = "../calibrationLinks/"
 # Where the cable info is stored.
 cablesBaseDir = localDir + "antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
 #cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
+palCablesBaseDir = localDir + "palestine14/SeaveyAntennas/S21s/"
+palAntS11sDir = localDir + "palestine14/SeaveyAntennas/S11s/"
+
 
 # Signal chain data (57dB seems to be a happy middle power).
 waveformDir = localDir + "waveforms/"
@@ -73,6 +76,12 @@ chamberIdentDir = "Anechoic_Chamber_New_Horn_Impulse/IdenticalAntennas/Ant2Blue_
 chamberRefPulse = localDir + chamberIdentDir + "Impulse_NewRedCable_23May2012.dat"
 
 chamberBoresightPulse = localDir + chamberIdentDir + "Impulse_p180Deg_t090Deg_22May2012_H_Two.dat"
+
+
+
+
+#A global constant that I don't want to add in a bunch of places because I should use classes
+suffix="_SimpVoltCalib"
 
 
 #==============================================================================
@@ -210,7 +219,8 @@ def importRoofAntOut():
 
 def importSurf(chan):
     #LAB chip from the SURF
-    fileName = waveformDir + str(chan) + "_avgSurfWaveform.txt"
+    global suffix
+    fileName = waveformDir + str(chan) + "_avgSurfWaveform" + suffix + ".txt"
     dataX,dataY = np.loadtxt(fileName).T
     
 #    dataY /= 1000 #mv->V  #not mV!  It is in ADC counts so I shouldn't touch this...
@@ -224,10 +234,13 @@ def importSurf(chan):
     return dataX, dataY, dataF, dataFFT
     
 
-def importScope(chan):
+def importScope(chan,index=1):
     #Calibration Scope
-    fileName = waveformDir + str(chan) + "_avgScopeWaveform.txt"
-    dataX,dataY = np.loadtxt(fileName).T
+    global suffix
+    fileName = waveformDir + str(chan) + "_avgScopeWaveform" + suffix + ".txt"
+    dataAll = np.loadtxt(fileName).T
+    dataX = dataAll[0]
+    dataY = dataAll[index]
 
     dataX *= 1e9 #s ->ns
 
@@ -274,6 +287,8 @@ def getRegeneratedCables(fileName,dF=5./512.,length=513):
 def getCables(fileName):
     """
     basically just import the cables.
+
+    *network analyzer cable measurements (not all are)*
     
     also transforms it from measured log magnitude to linear magnitude
 
@@ -288,7 +303,8 @@ def getCables(fileName):
 
 def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
     """
-    I'm going to depreciate this because it doesn't really work: use getCables() instead
+    **  I'm going to depreciate this because it doesn't really work: use getCables() instead  **
+
 
     A wrapper for getting the network analyzer data for the cables
 
@@ -382,6 +398,15 @@ def s2pParser(fileName):
                 
     return np.array(freq),np.array(gainLog,dtype=float),np.array(phase)
 
+
+def s11Parser(fileName):
+
+    data = np.genfromtxt(fileName,delimiter=",",comments="!",skip_footer=1,skip_header=18).T
+    
+    f = data[0]
+    fft = data[1] + data[2]*1j
+
+    return f,fft
 
 #==============================================================================
 # Processing
@@ -552,14 +577,171 @@ def processWaveform(graphT,graphV,source):
   then fill them if they aren't an numpy ndarray (which a boolean isn't)
 ============================================================================"""
 
+def doTriggerChain(chan="16BH",showPlots=True):
+    """
+    This does the "trigger" path, which would be from the ampa to the oscilloscope
+    coupled out of the box.  It can't read SURF waveforms because the LABs have a big
+    effect on the signal.
+
+    So go from scope pulse in to scope dispersed waveform out, and only for one channel.
+
+    However, theres also some attenuators in the mix.  
+
+    If you want to be crazy, maybe I'll also include some normalization between channels.
+
+    """
+
+    inRawX,inRawY,inRawF,inRawFFT = importScope(chan)
+    inX,inY = processWaveform(inRawX,inRawY,"calScope")
+    inF,inFFT = tf.genFFT(inX,inY)
+
+    #measured input went through a short cable, but we should remove it to find out "real" pulse
+    # measured = input + cables -> input = measured - cables
+    cableScopeF,cableScopeFFT= getRegeneratedCables("A-B_PULSER-SCOPE.s2p")
+    inFFT /= cableScopeFFT
+
+    #input signal went through a big ol' cable so lets kick that out
+    # input + cables = signal |easy peasy|
+    inCablesF,inCablesFFT = getRegeneratedCables("A-C_PULSER-TEST_56DB.s2p")
+    inFFT *= inCablesFFT
+
+    outRawX,outRawY,outRawF,outRawFFT = importScope(chan,2)
+    outX,outY = processWaveform(outRawX,outRawY,"calScope")
+    print "len(outX)=",len(outX),"len(outRawX)=",len(outRawX)
+    outF,outFFT = tf.genFFT(outX,outY)
+    print "len(outF)=",len(outF),"outdF=",outF[1]-outF[0]
+
+    #output signal went through a ton of cables first so pump that back up
+    # output = signal + cables |SO THEREFORE| signal = output - cables
+    outCablesF,outCablesFFT = getRegeneratedCables("CABLE_REF_TO_SCOPE.s2p")
+    print "len(outCablesF)=",len(outCablesF)," len(outF)=",len(outF)
+    outFFT /= outCablesFFT
+
+    #now you know what went in and out without cables, so transfer function!
+    tfF = outF
+    tfFFT = outFFT/inFFT
+    
+    #and you have to clean it up though because out of range it is stupid
+    tfFFT = np.nan_to_num(tfFFT)
+#    tfFFT[0] = 0
+    tfFFT[tfFFT > 1e10] = 0
+    tfFFT[tfFFT < -1e10] = 0
+
+
+#    for i in np.arange(0,len(tfF)):
+#        if tfF[i] < 0.180:
+#            tfFFT[i] /= 1e6
+#        if tfF[i] > 1.4:
+#            tfFFT[i] /= 1e6
+#        if tfF[i] > 2:
+#            tfFFT[i] = 0
+
+    #go to time domain
+    tfX,tfY = tf.genTimeSeries(outF,tfFFT)
+    tfY = np.roll(tfY,25) #falls off the front a bit
+
+
+    #low pass that garbage above 2GHz
+    tfY = tf.lowPass(tfX,tfY,lpFilter=1.4)
+    #also high pass out the low frequency
+    tfY = tf.highPass(tfX,tfY,hpFilter=0.1)
+    #and hanning out everything past 30ns
+    tfY = tf.hanningTail(tfY,400,20)
+
+    #regen freq domain
+    tfF,tfFFT = tf.genFFT(tfX,tfY)
+
+    tfFFT = tf.hanningTail(tfFFT,135,10)
+    tfFFT = tf.hanningTailNeg(tfFFT,20,5)
+
+
+    #correct for the attenuator that isn't included:
+    attens = importAttenInfo()
+    value = float(attens[chan][1]) #power loss in dB.  dB = 20*log10(V/V) -> 10^(dB/20) = V/V
+    print "Attenuator value: ",value
+    tfFFT /= 10.**(value/20.)
+
+
+    tfX,tfY = tf.genTimeSeries(outF,tfFFT)
+
+    if (showPlots):
+        fig,ax = lab.subplots(3)
+        ax[2].set_xlabel("Time (ns)")
+        ax[0].set_ylabel("Voltage (V)")
+        ax[0].plot(inX,inY,color="blue",label="Input Pulse")
+        ax[0].legend()
+        ax[1].set_ylabel("Voltage (V)")
+        ax[1].plot(outX,outY,color="red",label="Trigger Pulse")
+        ax[1].legend()
+        ax[2].set_ylabel("Gain")
+        ax[2].plot(tfX,np.roll(tfY,50),color="purple",label="Transfer Function")
+        ax[2].legend()
+        fig.show()
+        
+        figFFT,axFFT = lab.subplots(3)
+        axFFT[2].set_xlabel("Frequency (GHz)")
+        axFFT[0].set_ylabel("Power Spectral Density (dBm/Hz)                       ")
+        axFFT[0].plot(inF,tf.calcSpecMag(inF,inFFT),color="blue",label="Input Pulse")
+        axFFT[0].set_xlim([0,1.5])
+        axFFT[0].legend()
+#        axFFT[1].set_ylabel("Power Spectral Density (dBm/Hz)")
+        axFFT[1].plot(outF,tf.calcSpecMag(outF,outFFT),color="red",label="Trigger Pulse")
+        axFFT[1].set_xlim([0,1.5])
+        axFFT[1].legend()
+        axFFT[2].set_ylabel("Gain (dBm)")
+        axFFT[2].plot(tfF,tf.calcLogMag(tfF,tfFFT),color="purple",label="Transfer Function")
+        axFFT[2].set_xlim([0,1.5])
+        axFFT[2].set_ylim([0,80])
+        axFFT[2].legend()
+        figFFT.show()
+
+        figCables,axCables = lab.subplots()
+        axCables.set_xlabel("Frequency (GHz)")
+        axCables.set_ylabel("Forward Gain - S21 (dB)")
+        axCables.set_title("Trigger Path Calibration Cables")
+
+        cableScopeLogMag = tf.calcLogMag(cableScopeF,cableScopeFFT)
+        axCables.plot(cableScopeF,cableScopeLogMag,'+',color="blue",label="A-B_PULSER_SCOPE")
+
+        inCablesLogMag = tf.calcLogMag(inCablesF,inCablesFFT)
+        axCables.plot(inCablesF,inCablesLogMag+56,color="green",label="A-C_PULSER_TEST_56DB (+56)")
+
+        outCablesLogMag = tf.calcLogMag(outCablesF,outCablesFFT)        
+        axCables.plot(outCablesF,outCablesLogMag,color="red",label="CABLE_REF_TO_SCOPE")
+        axCables.legend(frameon=1)
+        figCables.show()
+
+
+    return tfX,tfY,tfF,tfFFT
+    
+
+
+
+def doTriggerChainWithAntenna(chan,showPlots=False):
+
+    trigX,trigY,trigF,trigFFT = doTriggerChain(chan,showPlots=showPlots)
+
+    antX,antY,antF,antFFT = doPalAnt(chan,showPlots=showPlots)
+
+    tfF = antF
+    tfFFT = antFFT*trigFFT
+
+    tfX,tfY = tf.genTimeSeries(tfF,tfFFT)
+
+    return tfX,tfY
+
+
+
+
+
 P2SF = False
 P2SFFT = False
 P2AF = False
 P2AFFT = False
 
 def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
-    if savePlots or showPlots:
-        lab.close("all")
+#    if savePlots or showPlots:
+#        lab.close("all")
 
     #phase shifts are likely pointless!
     #they were: scopeFFT=1.26
@@ -785,6 +967,13 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
     tfY = tf.hanningTail(tfY,320,100)
     tfY = tf.nyquistLimit(tfY,5.)
 
+
+
+    #vvvvvvvvvvvvv   IMPORTANT
+    #CLUDGE for normalization.  The RMS and y-factor analyses both suggest that this process is a factor of two low
+#    tfY *= 2
+    #^^^^^^^^^^^ 
+
     tfF,tfFFT = tf.genFFT(tfX,tfY)
     
 
@@ -849,7 +1038,10 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
         writeOne([tfX,tfY],chan,"sigChain")
 
 
+
     return tfX,tfY,surfF,tfFFT 
+
+
 
 
 def doRoofAntWithCables():
@@ -898,8 +1090,8 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
     """
 
-    if showPlots or savePlots:
-        lab.close("all")
+#    if showPlots or savePlots:
+#        lab.close("all")
 
     #input pulse
     inRawX,inRawY,inRawF,inRawFFT = importPalAntIn(chan)
@@ -910,10 +1102,11 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     inX = inX[:1024]
     inY = inY[:1024]
     inF,inFFT = tf.genFFT(inX,inY)
-    #increase by 10dB (from coupler)
-    inFFT *= 10**(10./20)
-    inX,inY = tf.genTimeSeries(inF,inFFT)
+    #increase by 10dB (from coupler) <---- this is done in the cables now!
+#    inFFT *= 10**(10./20)
+#    inX,inY = tf.genTimeSeries(inF,inFFT)
 
+    #do the weird group delay minimazation thing (or not)
 #    inFFT = tf.minimizeGroupDelayFromFFT(inF,inFFT)
 
 
@@ -929,6 +1122,16 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
 #    outFFT = tf.minimizeGroupDelayFromFFT(outF,outFFT)
 
+
+    #cables
+    cablesF,cablesFFT = palAntCables(showPlots=showPlots)
+    
+    #output should be scaled by the effect the cables has, which in this case makes the output pulse LARGER
+    outFFT /= cablesFFT
+
+    #then back to time domain
+    outX,outY = tf.genTimeSeries(outF,outFFT)
+
     if savePlots or showPlots:
         fig0,ax0 = lab.subplots(3,2)
 
@@ -941,7 +1144,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
         ax0[0][1].plot(outRawX,outRawY,label="Raw Output Pulse",color="red")
         ax0[0][1].plot(outX,outY,label="Processed Pulse",color="blue")
-        ax0[0][1].set_xlim([0,40])
+#        ax0[0][1].set_xlim([0,40])
         ax0[0][1].set_xlabel("Time (ns)")
         ax0[0][1].set_ylabel("Voltage (V)")
         ax0[0][1].legend()
@@ -981,13 +1184,13 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
             fig0.savefig("plots/doPalAnt_inAndOut"+chan+".png")
 
 
-    #computeTF?  hmm maybe just do a normal one
     """
     This does the (F_rec/F_src)*(c/if) calculation
     ends up being in units of "meters"
     """
 
     antTFFFT = np.divide(outFFT,inFFT)*(0.3/(1j*inF))
+#    antTFFFT = np.divide(outFFT,inFFT)
     antTFFFT[0] = 0
 
     antTFF = inF
@@ -1055,7 +1258,9 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
         antTFY *= -1
 
 
-
+    # theres a bunch of noise because blargh
+    antTFY = tf.hanningTail(antTFY,np.argmax(antTFY)+200,20)
+    antTFY = tf.hanningTailNeg(antTFY,np.argmax(antTFY)-20,20)
 
 
     antTFF,antTFFFT = tf.genFFT(antTFX,antTFY)
@@ -1063,7 +1268,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
     #Produce a plot for the gain normalized to dBi (hence the 4pi)
     if showPlots or savePlots:
-        gainTF = ((4*np.pi*antTFF**2)/(0.3**2))*np.abs(antTFFFT)**2
+        gainTF = calcAntGain(antTFF,antTFFFT)
         figGain,axGain = lab.subplots()
         figGain.suptitle(chan)
         axGain.plot(antTFF,10*np.log10(gainTF)) #10 instead of 20 because... its a power gain already I htink
@@ -1095,8 +1300,8 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
         ax[0][1].plot(outX,outY,label="output Pulse",color="blue")
         ax[0][2].plot(antTFX,antTFY,label="transfer Function",color="black")
         ax[0][0].set_xlim([0,25])
-        ax[0][1].set_xlim([0,25])
-        ax[0][2].set_xlim([0,25])
+#        ax[0][1].set_xlim([0,25])
+#        ax[0][2].set_xlim([0,25])
         ax[0][0].legend()
         ax[0][1].legend()
         ax[0][2].legend()
@@ -1124,9 +1329,9 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
         ax[1][0].set_ylabel("Gain (dB)")
         ax[2][0].set_ylabel("Group Delay (ns)")
 
-        ax[1][0].set_ylim([-60,-35])
-        ax[1][1].set_ylim([-100,-60])
-        ax[1][2].set_ylim([-60,0])
+        ax[1][0].set_ylim([-80,-45])
+        ax[1][1].set_ylim([-120,-50])
+        ax[1][2].set_ylim([-100,10])
 
         ax[2][0].set_ylim([-10,10])
         ax[2][1].set_ylim([-20,20])
@@ -1162,13 +1367,87 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     return antTFX,antTFY,antTFF,antTFFFT
 
 
-def palAntCables():
+def palAntImporter(fileName):
+    """
+    The csv files for the palestine antennas are annoying to parse
+    """
+    dataX,dataY = np.loadtxt(palCablesBaseDir+fileName,comments="\"",delimiter=",",usecols=(3,4)).T
+
+    dataX *= 1e9 #this should be in ns because thats how I roll
+
+    return dataX,dataY
+
+
+def palAntCables(showPlots=False):
     """
     
+    Apparently I wasn't dealing with the cables?  thats dumb
+
+
+    Setup:
+
+                                   A                B               C                            D
+    PS Pulser -> Coupler   -> 1' LMR 240 -> 50' Heliax 5/8" -> 5' LMR 240 -> TX -> RX -> 5' + 10' LMR 240 -> CH1
+                   (-10dB) -----> CH3
+
+    So i have to find all those?
+
+    I guess, according to notebook21.jpg and notebook22.jpg:
+    they are just 140626_140219_ps_pulser_copol* measurements
 
     """
 
+    #input pulse (with coupler like always)
+    inputX,inputY = palAntImporter("140626_135419_ps_pulser_copol_5ft_Ch3.csv")
+    inputY *= -1 #it is flipped?
+    inputY = np.roll(inputY,25-np.argmax(inputY))
+    inputX = np.arange(0,1024)*np.diff(inputX)[0]
+    inputY = inputY[:1024]
+    print "input: len=",len(inputX), " dT=",np.diff(inputX)[0]
+    inputF,inputFFT = tf.genFFT(inputX,inputY)
 
+    #output pulse (after going through ALL cables)
+    outputX,outputY = palAntImporter("140626_135419_ps_pulser_copol_5ft_Ch1.csv") 
+    outputY = np.roll(outputY,25-np.argmax(outputY))
+    outputX = outputX[:1024]
+    outputY = outputY[:1024]
+    print "output: len=",len(outputX), " dT=",np.diff(outputX)[0]
+    outputF,outputFFT = tf.genFFT(outputX,outputY)
+
+    #output pulse had a 20dB attenuator on it that isn't in the full setup
+    atten = 20.
+    outputFFT *= 10**(atten/20)
+
+    outputX,outputY = tf.genTimeSeries(outputF,outputFFT)
+    
+    tfF = outputF
+    tfFFT = outputFFT/inputFFT
+
+    tfX,tfY = tf.genTimeSeries(tfF,tfFFT)
+
+    if (showPlots):
+        fig,ax = lab.subplots(2,2)
+        
+        ax[0][0].plot(inputX,inputY,label="direct from coupler")
+        ax[0][0].plot(outputX,outputY,label="through all cables")
+        ax[0][0].legend()
+        
+        inputLogMag = tf.calcLogMag(inputF,inputFFT)
+        outputLogMag = tf.calcLogMag(outputF,outputFFT)
+        ax[0][1].plot(inputF,inputLogMag,label="direct from coupler")
+        ax[0][1].plot(outputF,outputLogMag,label="through all cables")
+        ax[0][1].legend()
+                
+ #       ax[1][0].plot(tfX,tfY,label="transFunc")
+ #       ax[1][0].legend()
+        
+        tfLogMag = tf.calcLogMag(tfF,tfFFT)
+        ax[1][1].plot(tfF,tfLogMag,label="trans func")
+        ax[1][1].legend()
+        
+        fig.show()
+
+    return tfF,tfFFT
 
 
 def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
@@ -1192,30 +1471,42 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
     
     if (showPlots or savePlots):
 #        lab.close("all")
-        fig,ax = lab.subplots(5,figsize=(11,8.5))
-        ax[0].set_title(chan)
-        ax[0].plot(antX,np.roll(antY,100),label="Antenna")
-        ax[0].legend()
-        ax[0].set_ylabel("Antenna Height (V/m)")
-        ax[1].plot(sigChainX,np.roll(sigChainY,100),label="sigChain",color="red")
-        ax[1].legend()
-#        ax[1].set_ylim([-0.2,0.2])
-        ax[1].set_ylabel("Gain (unitless)")
-        a3YPeak = np.argmax(a3Y)
-        ax[2].plot(a3X,np.roll(a3Y,100-a3YPeak),label="Convolution",color="black")
-        ax[2].legend()
-#        ax[2].set_ylim([-0.6,0.6])
-        ax[2].set_xlabel("Time (ns)")
-        ax[2].set_ylabel("Instrument Response \n (V/m)")
-        
-        ax[3].plot(a3F,tf.calcLogMag(a3F,a3FFT),color="black")
-#        ax[3].set_ylim([-100,-30])
-        ax[3].set_xlim([0.1,1.5])
-        ax[3].set_xlabel("Frequency (GHz)")
-        ax[3].set_ylabel("Gain (dBm)")
+        fig,ax = lab.subplots(2,3,figsize=(11,8.5))
+        ax[0][0].set_title(chan)
+        ax[0][0].plot(antX,np.roll(antY,100),label="Antenna")
+        ax[0][0].legend()
+        ax[0][0].set_ylabel("Antenna Height (V/m)")
 
-        ax[4].plot(a3F,tf.calcPhase(tf.minimizeGroupDelayFromFFT(a3F,a3FFT,highLim=256)),color="black")
-        ax[4].set_xlim([0,2])
+        ax[1][0].set_title(chan)
+        ax[1][0].plot(antF,tf.calcAntGain(antF,antFFT))
+        ax[1][0].set_ylabel("Antenna Gain (dBi)")
+        ax[1][0].set_xlim([0,3])
+
+        ax[0][1].plot(sigChainX,np.roll(sigChainY,100),label="sigChain",color="red")
+        ax[0][1].set_ylabel("Gain (unitless)")
+
+        ax[1][1].plot(sigChainF,tf.calcLogMag(sigChainF,sigChainFFT),color="red")
+        ax[1][1].set_ylim([30,80])
+        ax[1][1].set_ylabel("Gain (dB)")
+        ax[1][1].set_xlim([0,3])
+
+        a3YPeak = np.argmax(a3Y)
+        ax[0][2].plot(a3X,np.roll(a3Y,100-a3YPeak),label="Convolution",color="black")
+        ax[0][2].legend()
+        ax[0][2].set_xlabel("Time (ns)")
+        ax[0][2].set_ylabel("Instrument Response \n (V/m)")
+        
+        ax[1][2].plot(a3F,tf.calcLogMag(a3F,a3FFT),color="black")
+        ax[1][2].set_ylim([0,70])
+        ax[1][2].set_xlim([0.1,1.5])
+        ax[1][2].set_xlabel("Frequency (GHz)")
+        ax[1][2].set_ylabel("Instrument Height (V/m)")
+        ax[1][2].set_xlim([0,3])
+
+#        ax[4].plot(a3F,tf.calcPhase(tf.minimizeGroupDelayFromFFT(a3F,a3FFT,highLim=256)),color="black")
+#        ax[4].set_xlim([0,2])
+#        ax[4].set_xlabel("Frequency (GHz)")
+#        ax[4].set_ylabel("Group Delay (ns)")
 #        ax[4].set_ylim([-20,20])
 
         if showPlots:
@@ -1302,20 +1593,6 @@ def computeTF(inF,inFFT,outF,outFFT):
     return tfX,tfY,tfF,tfFFT
 
 
-def doTheWholeShebang(savePlots=False,showPlots=False,writeFiles=False):
-    # Generate the transfer function for all the channels!
-    chans = np.loadtxt("chanList.txt",dtype=str)
-    allChans = {}
-#    lab.close("all")
-    for chan in chans:
-        try:
-            allChans[chan] = doSigChainAndAntenna(chan,savePlots=savePlots,showPlots=showPlots,writeFiles=writeFiles)
-        except:
-            print chan+" FAILED"
-
-    return allChans
-
-
 def alignWaveforms(allChans,showPlots=False):
     
     #They need to all be aligned and have the same group delay!
@@ -1381,6 +1658,22 @@ def alignWaveforms(allChans,showPlots=False):
     return outChans2
 
 
+    
+
+
+def doAllInstrumentHeight(savePlots=False,showPlots=False,writeFiles=False):
+    #renamed from doTheWholeShebang because that isn't very descriptive
+    # Generate the transfer function for all the channels!
+    chans = np.loadtxt("chanList.txt",dtype=str)
+    allChans = {}
+#    lab.close("all")
+    for chan in chans:
+        try:
+            allChans[chan] = doSigChainAndAntenna(chan,savePlots=savePlots,showPlots=showPlots,writeFiles=writeFiles)
+        except:
+            print chan+" FAILED"
+
+    return allChans
 
 
 def doAllSigChains(savePlots=False,showPlots=False):
@@ -1540,7 +1833,7 @@ def saveAllNicePlots(allChans):
         fig.savefig("autoPlots/"+chan+".png")
 
 
-def plotCompare(allChans,savePlots=False,ant=False,sig=False):
+def plotCompare(allChans,savePlots=False,ant=False,sig=False,tFunc=False):
     """
       Plot a comparison of all the channels in a way that is sort of easy to see
       Also has a good way to exclude channels that you think are "bad" (so you
@@ -1639,13 +1932,13 @@ def plotCompare(allChans,savePlots=False,ant=False,sig=False):
     axFFTV[2].set_title("Bottom")
     axFFTH[2].set_title("Bottom")
 
-    axV[0].set_xlim([0,30])
-    axH[0].set_xlim([0,30])
+    axV[0].set_xlim([0,60])
+    axH[0].set_xlim([0,60])
 
     axV[2].set_xlabel("Time (ns)")
     axH[2].set_xlabel("Time (ns)")
-    axV[2].set_xticks(np.arange(0,30,1))
-    axH[2].set_xticks(np.arange(0,30,1))
+    axV[2].set_xticks(np.arange(0,60,2))
+    axH[2].set_xticks(np.arange(0,60,2))
 
     if ant:
         axV[1].set_ylabel("Effective antenna height (m)")
@@ -1661,12 +1954,12 @@ def plotCompare(allChans,savePlots=False,ant=False,sig=False):
         axFFTH[1].set_ylabel("Gain (dB)")
         axFFTV[1].set_ylabel("Gain (dB)")
 
-    elif tf:
-        axV[1].set_ylabel("Normalized instrument height (m)")
-        axH[1].set_ylabel("Normalized instrument height (m)")
+    elif tFunc:
+        axV[1].set_ylabel("Normalized instrument height (V/m)")
+        axH[1].set_ylabel("Normalized instrument height (V/m)")
         
-        axFFTH[1].set_ylabel("Normalized instument height  $(log_{10}(m))$")
-        axFFTV[1].set_ylabel("Normalized instrument height $(log_{10}(m))$")
+        axFFTH[1].set_ylabel("Normalized instument height  $(log_{10}(V/m))$")
+        axFFTV[1].set_ylabel("Normalized instrument height $(log_{10}(V/m))$")
 
 
     axFFTV[0].set_xlim([0,2])
@@ -1682,11 +1975,11 @@ def plotCompare(allChans,savePlots=False,ant=False,sig=False):
             axFFTV[i].set_ylim([-30,5])
             axFFTH[i].set_ylim([-30,5])
         elif sig:
-            axFFTV[i].set_ylim([30,65])
-            axFFTH[i].set_ylim([30,65])
-        else:
-            axFFTV[i].set_ylim([15,50])
-            axFFTH[i].set_ylim([15,50])
+            axFFTV[i].set_ylim([30,70])
+            axFFTH[i].set_ylim([30,70])
+        elif tFunc:
+            axFFTV[i].set_ylim([20,60])
+            axFFTH[i].set_ylim([20,60])
 
 
     axV[0].legend(frameon=True,ncol=2,bbox_to_anchor=(1.1,1.3))
@@ -1746,6 +2039,40 @@ def plotAntennaGain(allAnts,savePlots=False):
         figGain.savefig("plots/doPalAnt_AntGain"+chan+".png")
         
 
+
+def plotAntennaFactor(allAnts,savePlots=False):
+
+    #Produce a plot for the gain normalized to dBi (hence the 4pi)
+    
+    figGain,axGain = lab.subplots()
+    figGain.suptitle("ANITA3 Antenna Factor")
+    
+    axGain.set_ylabel("Antenna Factor (1/m)")
+    axGain.set_xlabel("Frequency (GHz)")
+    axGain.set_ylim([-10,20])
+    axGain.set_xlim([0,3])
+
+    for chan in allAnts:
+        x,y = allAnts[chan]
+        f,fft = tf.genFFT(x,y)
+        gainTF = tf.calcAntFactor(f,fft)
+
+
+        if chan == "01BH":
+            axGain.plot(f,gainTF,label="H",color="red")
+        if chan == "01BV":
+            axGain.plot(f,gainTF,label="V",color="blue")
+        if chan[-1] == "H":
+            axGain.plot(f,gainTF,color="red")
+        if chan[-1] == "V":
+            axGain.plot(f,gainTF,color="blue")
+
+
+    axGain.legend()
+    figGain.show()
+
+    if savePlots:
+        figGain.savefig("plots/doPalAnt_AntFactor"+chan+".png")
 
 
 def plotOneAtATime(allChans):
@@ -2132,3 +2459,152 @@ def plotSavedFiles(baseName="avgSurfWaveform",dir="waveforms_new"):
     fig.show()
 
     return allChans
+
+
+
+
+def plotSavedChannelWithMean(chan,prefix="transferFunctions/normSigChain_"):
+
+    inFileName = prefix+chan+".txt"
+
+    data = np.loadtxt(inFileName).T
+    f,logMag = tf.genLogMag(data[0],data[1])    
+
+    mean = 10*np.log10(np.mean(10**(logMag/10.)))
+    print "mean=",mean
+    
+    fig,ax = lab.subplots()
+    ax.set_title(chan)
+    ax.set_xlabel("Frequency (GHz)")
+    ax.set_ylabel("Gain (dB)")
+    ax.plot(f,logMag,label="Full",color="black")
+    ax.plot(f[15:115],logMag[15:115],label="1GHz Mean for RMS power",color="red")
+    ax.legend()
+
+
+    fig.show()
+
+    return
+
+
+
+def slidingMeanWindow(chan,prefix="transferFunctions/normSigChain_"):
+    
+    inFileName = prefix+chan+".txt"
+
+    data = np.loadtxt(inFileName).T
+    
+    startFreqs=[]
+    means=[]
+    num = 100
+    for i in range(0,100):
+        f,logMag = tf.genLogMag(data[0],data[1])
+        startFreqs.append(f[i])
+        means.append(np.mean(10**((logMag[i:i+100])/10.)))
+    
+
+    print np.max(10*np.log10(means))
+
+    fig,ax = lab.subplots()
+    ax.plot(startFreqs,10*np.log10(means),color="blue")
+    ax.set_title("Average Signal Chain Transfer Function Power Gain "+chan)
+    ax.set_ylabel("Average Gain (dB)")
+    ax.set_xlabel("Start Frequency (GHz)")
+    fig.show()
+
+
+
+
+def rmsThermalNoise():
+
+    kB = 1.38e-23 #J/K
+    R = 50
+#    B = np.arange(0,150)*(1e9/100)
+#    R = np.arange(0,50)
+    B = 1e9
+
+    Tfig = np.arange(0,100)
+    T0 = 290+Tfig
+#    Vout0 = 12.75 #from UsefulAnitaEvent::rms
+    Vout0 = 27.17 #from TGraph::GetRMS(2)
+
+    T1 = 1206+Tfig
+#    Vout1 = 23.75 #from UsefulAnitaEvent::rms
+    Vout1 = 51.36 #from TGraph::GetRMS(2)
+    
+
+        
+    V0 = np.sqrt(4*kB*T0*R*B)*1000.
+    V1 = np.sqrt(4*kB*T1*R*B)*1000.
+    
+    G0 = 20.*np.log10(Vout0/V0)
+    G1 = 20.*np.log10(Vout1/V1)
+
+
+    fig,ax = lab.subplots()
+    ax.plot(Tfig,G0)
+    ax.plot(Tfig,G1)
+    ax.set_title("Johnson-Nyquist Noise for 10BV noise diode calib data")
+    ax.set_xlabel("Bandwidth (Hz)")
+    ax.set_ylabel("Gain")
+    fig.show()
+
+
+def importAttenInfo(showPlots=False):
+    
+    #Chan | iRFCM attenuator | Split->Short attenuator | phi sector
+
+    attenInfo = np.loadtxt("attenuatorInfo/Map_sorted_by_Antenna-Table 1.csv",dtype=str,delimiter=",",usecols=(0,2,3,4))[:-2].T
+
+    outInfo = {}
+    for chan in attenInfo.T:
+        outInfo[chan[0]] = chan[1:]
+
+    print outInfo
+
+    if showPlots:
+        fig,ax = lab.subplots()
+        ax.hist(np.array(attenInfo[2],dtype=float),np.arange(0,7)-0.5,color="blue",edgecolor="black")
+        fig.show()
+
+
+    return outInfo
+
+
+def genTriggerGains(allSigChains):
+
+    attenInfo = importAttenInfo()
+
+    maxes = []
+    modMaxes = []
+    for chanKey in attenInfo:
+        max = np.max(tf.genLogMag(allSigChains[chanKey][0],allSigChains[chanKey][1])[1])
+        maxes.append(float(max))
+        print chanKey,max,attenInfo[1][i],max+float(attenInfo[1][i])
+        modMaxes.append(float(max-float(attenInfo[1][i])+8))
+
+    fig,ax = lab.subplots()
+    ax.hist(maxes,np.arange(60,75,0.2),color="red",edgecolor="black",alpha=0.5)
+    ax.hist(modMaxes,np.arange(60,75,0.2),color="blue",edgecolor="black",alpha=0.5)
+    fig.show()
+
+def compTrigToSig(channel="16BH"):
+
+    trig = doTriggerChain()
+    sig = doSigChainWithCables("16BH")
+
+    fig,ax = lab.subplots(3)
+    ax[0].plot(trig[0],trig[1],color="blue",label="Trigger")
+    ax[0].set_xlim([0,40])
+    ax[0].legend()
+    ax[1].plot(sig[0],sig[1]*-1,color="red",label="Digitizer")
+    ax[1].set_xlim([0,40])
+    ax[1].legend()
+    ax[1].set_ylabel("Gain")
+    ax[2].plot(trig[0],trig[1],color="blue",label="Trigger")
+    ax[2].plot(sig[0],sig[1]*-2,color="red",label="Digitizer")
+    ax[2].set_xlim([0,40])
+    ax[2].legend()
+    ax[2].set_xlabel("Time (ns)")
+    fig.show()
+
