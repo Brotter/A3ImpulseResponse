@@ -1060,21 +1060,23 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
 """
 def doTUFF(f, varCap1 = -1, varCap2 = -1, varCap3 = -1):
     R = 6  #  Parasitic notch resistance (Ohms).
-    C = 6e-13  #  Parasitic notch capacitance (Farads).
+    C = 0.6  #  Parasitic notch capacitance (picoFarads).
     L = 56e-9  #  Notch inductance (Henries).
     
     # Calculate total impedance from parallel components.
     Yparallel = 1 / 50  #  Y = 1 / Z called admittance. Start of total notch admittance.
     def Ynotch(capVal):  #  Input admittance function for notch filters.
-        Znotch = R + 1j * 2 * np.pi * f * L + (1j * 2 * np.pi * f * (C + capVal))**-1
+        Znotch = R + 1j * 2 * np.pi * f * L + (1j * 2 * np.pi * f * (C + capVal) * 1e-12)**-1
         return Znotch**-1
     """
       Starting here, we apply additional impedances when notches switched on.
       Chose negative input values to correspond to notches being switched off.
     """
-    if (varCap1 >= 0): Yparallel += Ynotch(1.8e-12 + varCap1)
-    if (varCap2 >= 0): Yparallel += Ynotch(12e-12 * varCap2 / (12e-12 + varCap2))
-    if (varCap3 >= 0): Yparallel += Ynotch(1.5e-12 * varCap3 / (1.5e-12 + varCap3))
+    if (varCap1 >= 0): Yparallel += Ynotch(1.8 + varCap1)
+    if (varCap2 > 0): Yparallel += Ynotch(12 * varCap2 / (12 + varCap2))
+    if (varCap2 == 0): YParallel += Ynotch(12)
+    if (varCap3 > 0): Yparallel += Ynotch(1.5 * varCap3 / (1.5 + varCap3))
+    if (varCap3 == 0): Yparallel += Ynotch(1.5)
     
     #  Calculate complex TUFF gain.
     GTUFF = (1 + 50 * Yparallel)**-1
