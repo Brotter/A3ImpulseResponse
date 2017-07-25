@@ -1053,11 +1053,10 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
     return a3X,a3Y
 
 # Evaluating the transfer function chain for a TUFF. Default is no notches on.
-def doTUFF(varCap1 = -1, varCap2 = -1, varCap3 = -1):
+def doTUFF(f, varCap1 = -1, varCap2 = -1, varCap3 = -1):
     R = 6  #  Parasitic notch resistance (Ohms).
     C = 6e-13  #  Parasitic notch capacitance (Farads).
     L = 56e-9  #  Notch inductance (Henries).
-    f = np.arange(200e6, 1.2e9, 100e6)  #  ANITA band frequency range (Hz).
     
     # Calculate total impedance from parallel components.
     Yparallel = 1 / 50  #  Y = 1 / Z called admittance. Start of total notch admittance.
