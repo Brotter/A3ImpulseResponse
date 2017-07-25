@@ -1052,7 +1052,12 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
     
     return a3X,a3Y
 
-# Evaluating the transfer function chain for a TUFF. Default is no notches on.
+"""
+  Evaluating the transfer function chain for a TUFF. Assumes input frequency
+  array (f) is in Hertz. By setting each notch's variable capacitors
+  (varCap1, varCap2, varCap3) to being negative, the default behavior is
+  for the notches to be off.
+"""
 def doTUFF(f, varCap1 = -1, varCap2 = -1, varCap3 = -1):
     R = 6  #  Parasitic notch resistance (Ohms).
     C = 6e-13  #  Parasitic notch capacitance (Farads).
