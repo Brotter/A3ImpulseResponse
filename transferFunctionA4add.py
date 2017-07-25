@@ -1052,9 +1052,33 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
     
     return a3X,a3Y
 
-# Evaluating the transfer function chain from the TUFFs. Default is no notches on.
-def doTUFFs(varCap1 = 0, varCap2 = 0, varCap3 = 0):
-    return 
+# Evaluating the transfer function chain for a TUFF. Default is no notches on.
+def doTUFF(varCap1 = -1, varCap2 = -1, varCap3 = -1):
+    R = 6  #  Parasitic notch resistance (Ohms).
+    C = 6e-13  #  Parasitic notch capacitance (Farads).
+    L = 56e-9  #  Notch inductance (Henries).
+    f = np.arange(200e6, 1.2e9, 100e6)  #  ANITA band frequency range (Hz).
+    
+    # Calculate total impedance from parallel components.
+    Yparallel = 1 / 50  #  Y = 1 / Z called admittance. Start of total notch admittance.
+    def Ynotch(capVal):  #  Input admittance function for notch filters.
+        Znotch = R + 1j * 2 * np.pi * f * L + (1j * 2 * np.pi * f * (C + capVal))**-1
+        return Znotch**-1
+    """
+      Starting here, we apply additional impedances when notches switched on.
+      Chose negative input values to correspond to notches being switched off.
+    """
+    if (varCap1 >= 0): Yparallel += Ynotch(1.8e-12 + varCap1)
+    if (varCap2 >= 0): Yparallel += Ynotch(12e-12 * varCap2 / (12e-12 + varCap2))
+    if (varCap3 >= 0): Yparallel += Ynotch(1.5e-12 * varCap3 / (1.5e-12 + varCap3))
+    
+    #  Calculate complex TUFF gain.
+    GTUFF = (1 + 50 * Yparallel)**-1
+    
+    #  Find transfer function in dB and its phase.
+    GdBTUFF = 40 + 20 * np.log10(np.abs(GTUFF))  #  Accounting for 40 dB amplification.
+    phaseTUFF = np.angle(GTUFF, deg = True)  #  Phase in degrees.
+    return GdBTUFF, phaseTUFF
 
 def doTheWholeShebang(savePlots=False,showPlots=False,writeFiles=False):
     # Generate the transfer function for all the channels!
