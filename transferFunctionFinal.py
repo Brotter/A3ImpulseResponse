@@ -1602,7 +1602,7 @@ def alignWaveforms(allChans,showPlots=False):
 
 
     outChans = {}
-    desiredDelay = 40
+    desiredDelay = 0
     max = np.argmax(allChans["01BH"][1])
     outChans["01BH"] = allChans["01BH"][0],np.roll(allChans["01BH"][1],max-desiredDelay)
     for chan in allChans:
@@ -1673,7 +1673,11 @@ def doAllInstrumentHeight(savePlots=False,showPlots=False,writeFiles=False):
         except:
             print chan+" FAILED"
 
-    return allChans
+
+    allChansAligned = alignWaveforms(allChans)
+    rollAllDict(allChansAligned,-500)
+
+    return allChansAligned
 
 
 def doAllSigChains(savePlots=False,showPlots=False):
@@ -1729,6 +1733,20 @@ def findSignalToNoise():
       all the FFTs of a bunch of waveforms with no signal...
     """
     return
+
+
+def rollAllDict(allChans,roll):
+
+    """
+    
+    If you want to roll all the channels in an "allChans" type object
+
+    """
+
+    for chan in allChans.keys():
+        allChans[chan][1] = np.roll(allChans[chan][1],roll)
+                
+
 
 
 #==============================================================================
@@ -2422,12 +2440,18 @@ def plotSavedFiles(baseName="avgSurfWaveform",dir="waveforms_new"):
 
     files = glob(dir+"/*"+baseName+"*")
 
+    print files
 
     allChans = {}
 
     for file in files:
-        name = file.split("/")[1].split("_")[1].split(".")[0]
+        try:
+            name = file.split("/")[-1].split("_")[1].split(".")[0]
+        except:
+            name = file.split("/")[-1].split(".")[0]
         print name
+        if (name == "all"):
+            continue
         data = np.loadtxt(file).T
         allChans[name] = data
         if name[-1] == "H":
