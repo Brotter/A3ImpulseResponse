@@ -1073,10 +1073,8 @@ def doTUFF(f, varCap1 = -1, varCap2 = -1, varCap3 = -1):
       Chose negative input values to correspond to notches being switched off.
     """
     if (varCap1 >= 0): Yparallel += Ynotch(1.8 + varCap1)
-    if (varCap2 > 0): Yparallel += Ynotch(12 * varCap2 / (12 + varCap2))
-    if (varCap2 == 0): YParallel += Ynotch(12)
-    if (varCap3 > 0): Yparallel += Ynotch(1.5 * varCap3 / (1.5 + varCap3))
-    if (varCap3 == 0): Yparallel += Ynotch(1.5)
+    if (varCap2 >= 0): Yparallel += Ynotch(12 * varCap2 / (12 + varCap2))
+    if (varCap3 >= 0): Yparallel += Ynotch(1.5 * varCap3 / (1.5 + varCap3))
     
     #  Calculate complex TUFF gain.
     GTUFF = (1 + 50 * Yparallel)**-1
