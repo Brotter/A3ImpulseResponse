@@ -1052,19 +1052,20 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
     
     return a3X,a3Y
 
+
 """
   Evaluating the transfer function chain for a TUFF. Assumes input frequency
-  array (f) is in Hertz. By setting each notch's variable capacitors
-  (varCap1, varCap2, varCap3) to being negative, the default behavior is
-  for the notches to be off.
+  array (f) is in Hz. By initially setting the pF capacitance for each notch's
+  variable capacitor (varCap1, varCap2, varCap3) to being negative, the default behavior
+  is for the notches to be off.
 """
 def doTUFF(f, varCap1 = -1, varCap2 = -1, varCap3 = -1):
-    R = 6  #  Parasitic notch resistance (Ohms).
-    C = 0.6  #  Parasitic notch capacitance (picoFarads).
-    L = 56e-9  #  Notch inductance (Henries).
+    R = 6  #  Parasitic notch resistance in Ohms.
+    C = 0.6  #  Parasitic notch capacitance in pF.
+    L = 56e-9  #  Notch inductance in H.
     
-    # Calculate total impedance from parallel components.
-    Yparallel = 1 / 50  #  Y = 1 / Z called admittance. Start of total notch admittance.
+    # Calculate total admittance (Y = 1 / Z, Z being impedance) from parallel components.
+    Yparallel = 1 / 50  #  Start of total notch admittance.
     def Ynotch(capVal):  #  Input admittance function for notch filters.
         Znotch = R + 1j * 2 * np.pi * f * L + (1j * 2 * np.pi * f * (C + capVal) * 1e-12)**-1
         return Znotch**-1
@@ -1076,13 +1077,15 @@ def doTUFF(f, varCap1 = -1, varCap2 = -1, varCap3 = -1):
     if (varCap2 >= 0): Yparallel += Ynotch(12 * varCap2 / (12 + varCap2))
     if (varCap3 >= 0): Yparallel += Ynotch(1.5 * varCap3 / (1.5 + varCap3))
     
-    #  Calculate complex TUFF gain.
+    #  Calculate complex gain from TUFF passive components.
     GTUFF = (1 + 50 * Yparallel)**-1
     
     #  Find transfer function in dB and its phase.
-    GdBTUFF = 40 + 20 * np.log10(np.abs(GTUFF))  #  Accounting for 40 dB amplification.
+    TdBTUFF = 40 + 20 * np.log10(np.abs(GTUFF))  #  Accounting for 40 dB amplification.
     phaseTUFF = np.angle(GTUFF, deg = True)  #  Phase in degrees.
-    return GdBTUFF, phaseTUFF
+    
+    return TdBTUFF, phaseTUFF
+
 
 def doTheWholeShebang(savePlots=False,showPlots=False,writeFiles=False):
     # Generate the transfer function for all the channels!
