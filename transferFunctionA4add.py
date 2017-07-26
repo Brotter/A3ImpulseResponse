@@ -1064,22 +1064,23 @@ def doTUFF(f, varCap1 = None, varCap2 = None, varCap3 = None):
     C = 0.6  #  Parasitic notch capacitance in pF.
     L = 56e-9  #  Notch inductance in H.
     
-    # Calculate total admittance (Y = 1 / Z, Z being impedance) from parallel components.
-    Yparallel = 1 / 50  #  Start of total notch admittance.
+    # Calculate total admittance (Y = 1 / Z, Z being impedance) from parallel notch components.
+    Ynotches = 0  #  Start of total notch admittance.
     def Ynotch(capVal):  #  Input admittance function for notch filters.
-        Znotch = R + 1j * 2 * np.pi * f * L + (1j * 2 * np.pi * f * (C + capVal) * 1e-12)**-1
+        Znotch = R + 1j * 2 * np.pi * f * L
+        Znotch += (1j * 2 * np.pi * f * (C + capVal) * 1e-12)**-1
         return Znotch**-1
-    #  Starting here, we apply additional impedances when notches switched on.
-    if (varCap1 is not None): Yparallel += Ynotch(1.8 + varCap1)
-    if (varCap2 is not None): Yparallel += Ynotch(12 * varCap2 / (12 + varCap2))
-    if (varCap3 is not None): Yparallel += Ynotch(1.5 * varCap3 / (1.5 + varCap3))
+    #  Starting here, we apply additional admittances when notches switched on.
+    if varCap1 is not None: Ynotches += Ynotch(1.8 + varCap1)
+    if varCap2 is not None: Ynotches += Ynotch(12 * varCap2 / (12 + varCap2))
+    if varCap3 is not None: Ynotches += Ynotch(1.5 * varCap3 / (1.5 + varCap3))
     
     #  Calculate complex gain from TUFF passive components.
-    GTUFF = (1 + 50 * Yparallel)**-1
+    GTUFF = (2 + 50 * Ynotches)**-1
     
     #  Find transfer function in dB and its phase.
     TdBTUFF = 40 + 20 * np.log10(np.abs(GTUFF))  #  Accounting for 40 dB amplification.
-    phaseTUFF = np.angle(GTUFF, deg = True)  #  Phase in degrees.
+    phaseTUFF = np.angle(GTUFF)  #  Phase in radians.
     
     return TdBTUFF, phaseTUFF
 
