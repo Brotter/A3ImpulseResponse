@@ -1673,7 +1673,10 @@ def doAllInstrumentHeight(savePlots=False,showPlots=False,writeFiles=False):
         except:
             print chan+" FAILED"
 
-    return allChans
+
+    allChansAligned = alignWaveforms(allChans)
+
+    return allChansAligned
 
 
 def doAllSigChains(savePlots=False,showPlots=False):
@@ -2422,11 +2425,15 @@ def plotSavedFiles(baseName="avgSurfWaveform",dir="waveforms_new"):
 
     files = glob(dir+"/*"+baseName+"*")
 
+    print files
 
     allChans = {}
 
     for file in files:
-        name = file.split("/")[1].split("_")[1].split(".")[0]
+        try:
+            name = file.split("/")[-1].split("_")[1].split(".")[0]
+        except:
+            name = file.split("/")[-1].split(".")[0]
         print name
         data = np.loadtxt(file).T
         allChans[name] = data
