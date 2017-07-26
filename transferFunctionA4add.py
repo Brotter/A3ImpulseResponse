@@ -1055,11 +1055,11 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
 
 """
   Evaluating the transfer function chain for a TUFF. Assumes input frequency
-  array (f) is in Hz. By initially setting the pF capacitance for each notch's
-  variable capacitor (varCap1, varCap2, varCap3) to being negative, the default behavior
+  array (f) is in Hz. By initially not setting the pF capacitance for each
+  notch's variable capacitor (varCap1, varCap2, varCap3), the default behavior
   is for the notches to be off.
 """
-def doTUFF(f, varCap1 = -1, varCap2 = -1, varCap3 = -1):
+def doTUFF(f, varCap1 = None, varCap2 = None, varCap3 = None):
     R = 6  #  Parasitic notch resistance in Ohms.
     C = 0.6  #  Parasitic notch capacitance in pF.
     L = 56e-9  #  Notch inductance in H.
@@ -1069,13 +1069,10 @@ def doTUFF(f, varCap1 = -1, varCap2 = -1, varCap3 = -1):
     def Ynotch(capVal):  #  Input admittance function for notch filters.
         Znotch = R + 1j * 2 * np.pi * f * L + (1j * 2 * np.pi * f * (C + capVal) * 1e-12)**-1
         return Znotch**-1
-    """
-      Starting here, we apply additional impedances when notches switched on.
-      Chose negative input values to correspond to notches being switched off.
-    """
-    if (varCap1 >= 0): Yparallel += Ynotch(1.8 + varCap1)
-    if (varCap2 >= 0): Yparallel += Ynotch(12 * varCap2 / (12 + varCap2))
-    if (varCap3 >= 0): Yparallel += Ynotch(1.5 * varCap3 / (1.5 + varCap3))
+    #  Starting here, we apply additional impedances when notches switched on.
+    if (varCap1 is not None): Yparallel += Ynotch(1.8 + varCap1)
+    if (varCap2 is not None): Yparallel += Ynotch(12 * varCap2 / (12 + varCap2))
+    if (varCap3 is not None): Yparallel += Ynotch(1.5 * varCap3 / (1.5 + varCap3))
     
     #  Calculate complex gain from TUFF passive components.
     GTUFF = (1 + 50 * Yparallel)**-1
