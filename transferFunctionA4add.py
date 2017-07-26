@@ -1065,10 +1065,9 @@ def doTUFF(f, varCap1 = None, varCap2 = None, varCap3 = None):
     L = 56e-9  #  Notch inductance in H.
     
     # Calculate total admittance (Y = 1 / Z, Z being impedance) from parallel notch components.
-    Ynotches = 0  #  Start of total notch admittance.
+    Ynotches = np.zeros_like(f, 'complex')  #  Start of total notch admittance.
     def Ynotch(capVal):  #  Input admittance function for notch filters.
-        Znotch = R + 1j * 2 * np.pi * f * L
-        Znotch += (1j * 2 * np.pi * f * (C + capVal) * 1e-12)**-1
+        Znotch = R + 1j * 2 * np.pi * f * L + (1j * 2 * np.pi * f * (C + capVal) * 1e-12)**-1
         return Znotch**-1
     #  Starting here, we apply additional admittances when notches switched on.
     if varCap1 is not None: Ynotches += Ynotch(1.8 + varCap1)
