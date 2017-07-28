@@ -4,7 +4,8 @@ ANITA-3. Takes some functions from Ben Rotter's "transferFunctionFinal.py" and
 modifies them for ANTIA-4 usage.
 """
 
-
+import numpy as np
+import pylab as lab
 import tfUtils as tfu
 import transferFunctionFinal as tff  #  This is to reference what Ben has already done.
 
@@ -45,10 +46,12 @@ def findPalestineAntennaFile(chan, inOrOut):
 
 
 def importPalAntIn(chan):
-    #Palestine Antennas
-        # there is only one waveform :( 
-        # so I can't do any averaging and I just import the raw data I guess
-        # Also this means I probably need to link the whole dir (since they are far away)
+    """
+      Palestine Antennas
+        there is only one waveform :( 
+        so I can't do any averaging and I just import the raw data I guess
+        Also this means I probably need to link the whole dir (since they are far away)
+    """
 
     fileName = findPalestineAntennaFile(chan,"in")
 
@@ -101,7 +104,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     #input pulse
     inRawX,inRawY,inRawF,inRawFFT = importPalAntIn(chan)
 
-    inX,inY = processWaveform(inRawX,inRawY,"palin")
+    inX,inY = tff.processWaveform(inRawX,inRawY,"palin")
     inY = np.roll(inY,30-np.argmax(inY))
 
     inF,inFFT = tfu.genFFT(inX,inY)
@@ -115,7 +118,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
     #output pulse
     outRawX,outRawY,outRawF,outRawFFT = importPalAntOut(chan)
-    outX,outY = processWaveform(outRawX,outRawY,"palout")
+    outX,outY = tff.processWaveform(outRawX,outRawY,"palout")
     outY = np.roll(outY,50-np.argmax(outY))
 #    outY = tfu.hanningTail(outY,130,30)
 ##    outX = outX[:1024]
@@ -314,18 +317,18 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
             fig.savefig("plots/doPalAnt_TF"+chan+".png")
         
         if writeFiles:
-            writeOne([antTFX,antTFY],chan,"palAnt")
+            tff.writeOne([antTFX,antTFY],chan,"palAnt")
         
         return antTFX,antTFY,antTFF,antTFFFT
 
 
 """
-  Evaluating the transfer function chain for a TUFF. Assumes input frequency
-  array (f) is in Hz. By initially not setting the pF capacitance for each
-  notch's variable capacitor (varCap1, varCap2, varCap3), the default behavior
-  is for the notches to be off.
+  Evaluating the transfer function chain for a TUFF. Assumes input frequency array
+  (f) is in Hz. By initially not setting the pF capacitance for each notch's
+  variable capacitor (varCap1, varCap2, varCap3), the default behavior is for the
+  notches to be off. Also default behavior is for phase to be in radians.
 """
-def doTUFF(f, varCap1 = None, varCap2 = None, varCap3 = None):
+def doTUFF(f, varCap1 = None, varCap2 = None, varCap3 = None, deg = False):
     R = 6  #  Parasitic notch resistance in Ohms.
     C = 0.6  #  Parasitic notch capacitance in pF.
     L = 56e-9  #  Notch inductance in H.
@@ -345,6 +348,6 @@ def doTUFF(f, varCap1 = None, varCap2 = None, varCap3 = None):
     
     #  Find transfer function in dB and its phase.
     TdBTUFF = 40 + 20 * np.log10(np.abs(GTUFF))  #  Accounting for 40 dB amplification.
-    phaseTUFF = np.angle(GTUFF)  #  Phase in radians.
+    phaseTUFF = np.angle(GTUFF, deg)  #  Phase in radians by default.
     
     return TdBTUFF, phaseTUFF
