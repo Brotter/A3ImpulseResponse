@@ -351,3 +351,35 @@ def doTUFF(f, varCap1 = None, varCap2 = None, varCap3 = None, deg = False):
     phaseTUFF = np.angle(GTUFF, deg)  #  Phase in radians by default.
     
     return TdBTUFF, phaseTUFF
+
+
+"""
+  Essentially the same as doTUFF() above, except it replaces the variable
+  capacitance input with resonant frequencies in Hz for driven series RLC
+  circuits.
+"""
+def doTUFFFreq(f, resFreq1 = 260e6, resFreq2 = 375e6, resFreq3 = 460e6, deg = False):
+    R = 6  #  Parasitic notch resistance in Ohms.
+    L = 56e-9  #  Notch inductance in H.
+    
+    # Calculate total admittance (Y = 1 / Z, Z being impedance) from parallel notch components.
+    Ynotches = np.zeros_like(f, 'complex')  #  Start of total notch admittance.
+    def Ynotch(freqVal):  #  Input admittance function for notch filters.
+        Znotch = R + 1j * 2 * np.pi * f * L
+        Znotch = ((2 * np.pi * freqVal * L)**2 + 0.5 * R**2) / (1j * 2 * np.pi * f * L)
+        return Znotch**-1
+    #  Starting here, we apply additional admittances when notches switched on.
+    if resFreq1: Ynotches += Ynotch(resFreq1)
+    if resFreq2: Ynotches += Ynotch(resFreq2)
+    if resFreq3: Ynotches += Ynotch(resFreq3)
+    
+    #  Calculate complex gain from TUFF passive components.
+    GTUFF = (2 + 50 * Ynotches)**-1
+    
+    #  Find transfer function in dB and its phase.
+    TdBTUFF = 40 + 20 * np.log10(np.abs(GTUFF))  #  Accounting for 40 dB amplification.
+    phaseTUFF = np.angle(GTUFF, deg)  #  Phase in radians by default.
+    
+    return TdBTUFF, phaseTUFF
+
+
