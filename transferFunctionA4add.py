@@ -366,7 +366,7 @@ def doTUFFFreq(f, resFreq1 = 260e6, resFreq2 = 375e6, resFreq3 = 460e6, deg = Fa
     Ynotches = np.zeros_like(f, 'complex')  #  Start of total notch admittance.
     def Ynotch(freqVal):  #  Input admittance function for notch filters.
         Znotch = R + 1j * 2 * np.pi * f * L
-        Znotch = ((2 * np.pi * freqVal * L)**2 + 0.5 * R**2) / (1j * 2 * np.pi * f * L)
+        Znotch += ((2 * np.pi * freqVal * L)**2 + 0.5 * R**2) / (1j * 2 * np.pi * f * L)
         return Znotch**-1
     #  Starting here, we apply additional admittances when notches switched on.
     if resFreq1: Ynotches += Ynotch(resFreq1)
