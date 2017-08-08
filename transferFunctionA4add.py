@@ -356,7 +356,8 @@ def doTUFF(f, varCap1 = None, varCap2 = None, varCap3 = None, deg = False):
 """
   Essentially the same as doTUFF() above, except it replaces the variable
   capacitance input with resonant frequencies in Hz for driven series RLC
-  circuits.
+  circuits. To switch off a given notch, set the notch's corresponding resonant
+  frequency equal to 'None' (ex. doTUFFFreq(f, resFreq1 = None)).
 """
 def doTUFFFreq(f, resFreq1 = 260e6, resFreq2 = 375e6, resFreq3 = 460e6, deg = False):
     R = 6  #  Parasitic notch resistance in Ohms.
@@ -369,9 +370,9 @@ def doTUFFFreq(f, resFreq1 = 260e6, resFreq2 = 375e6, resFreq3 = 460e6, deg = Fa
         Znotch += (0.5 * R**2 + (2 * np.pi * freqVal * L)**2) / (1j * 2 * np.pi * f * L)
         return Znotch**-1
     #  Starting here, we apply additional admittances when notches switched on.
-    if resFreq1: Ynotches += Ynotch(resFreq1)
-    if resFreq2: Ynotches += Ynotch(resFreq2)
-    if resFreq3: Ynotches += Ynotch(resFreq3)
+    if resFreq1 is not None: Ynotches += Ynotch(resFreq1)
+    if resFreq2 is not None: Ynotches += Ynotch(resFreq2)
+    if resFreq3 is not None: Ynotches += Ynotch(resFreq3)
     
     #  Calculate complex gain from TUFF passive components.
     GTUFF = (2 + 50 * Ynotches)**-1
