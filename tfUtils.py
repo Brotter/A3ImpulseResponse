@@ -25,7 +25,7 @@ except:
 try:
     import pyfftw.interfaces.numpy_fft as fftw
 except:
-    print "You don't have the pyfftw package, so I'll use numpy's FFT package FFTPACK"
+    print( "You don't have the pyfftw package, so I'll use numpy's FFT package FFTPACK")
     import numpy.fft as fftw
 
 import cmath #for doing complex square root
@@ -182,7 +182,7 @@ def calcLinMagFromLogMag(graphSpecMag,dF=-1):
     It might be nice to have a way to reverse this (and return power in watts)
     """
     if (dF == -1):
-        print "Using 1 for dF in tfUtils.calcLinMag()"
+        print( "Using 1 for dF in tfUtils.calcLinMag()")
         dF = 1
         
 
@@ -196,7 +196,7 @@ def genGaussian(graphX,width=10,center=False):
     length = len(graphX)
     if (center==False or center > length or center < 0):
         center = length/2
-        print "genGaussian: default length ("+str(center)+")"
+        print( "genGaussian: default length ("+str(center)+")")
         
     dT = graphX[1] - graphX[0]
     norm=1./(np.sqrt(2.*np.pi)*width)
@@ -261,7 +261,7 @@ def zeroPadEqual(inXArray,inYArray,outPoints):
             tempYList.insert(0,0)
             switch = 1
         else:
-            print "lol how did this happen??"
+            print( "lol how did this happen??")
 
     return np.array(tempXList),np.array(tempYList)
 
@@ -274,11 +274,11 @@ def hanningTail(inYArray,start,slope):
     """
     
     outYArray = copy.deepcopy(inYArray)
-    print len(inYArray),len(outYArray)
+    print( len(inYArray),len(outYArray))
     for pt in range(0,len(inYArray)):
         if pt<=start:
             outYArray[pt] = inYArray[pt]
-            print pt,inYArray[pt],outYArray[pt]
+            print( pt,inYArray[pt],outYArray[pt])
             continue
         if pt>start and pt<=start+slope: 
             pt_corr = pt - start
@@ -334,11 +334,11 @@ def hanningWindow(inXArray,inYArray,center,totalWidth=1000,slope=200):
     width = totalWidth-(2*slope)
     
     if ( center-(width/2+slope) < 0 ):
-        print "Warning in hanningWindow: center ("+str(center)+") too close to zero, moving to min ("+str(width/2)+")"
+        print( "Warning in hanningWindow: center ("+str(center)+") too close to zero, moving to min ("+str(width/2)+")")
         center = totalWidth/2
         
     if ( center+(width/2+slope) > lenGraph):
-        print "Warning in hanningWindow: center ("+str(center)+") too large, moving to max ("+str(lenGraph-width/2)+")"
+        print( "Warning in hanningWindow: center ("+str(center)+") too large, moving to max ("+str(lenGraph-width/2)+")")
         center = lenGraph-totalWidth/2
         
     value = 0.0;
@@ -373,12 +373,12 @@ def hanningWindow(inXArray,inYArray,center,totalWidth=1000,slope=200):
 
 def nyquistLimit(inputWaveVolts,fMax):
     
-    print "nyquistLimit(): max:",np.max(inputWaveVolts)," min:",np.min(inputWaveVolts)
+    print( "nyquistLimit(): max:",np.max(inputWaveVolts)," min:",np.min(inputWaveVolts))
 
     #this is a real butterworth filter
     lpFilt = 1.3 #GHz (1.3 is nyquist of LAB3B, so this is a const)
     lpFilt /= fMax #scale it by nyquist
-    print "nyquistLimit(): lpFilt=",lpFilt
+    print( "nyquistLimit(): lpFilt=",lpFilt)
     b,a = signal.butter(3,lpFilt,'lowpass')
 
     filtered = signal.lfilter(b,a,inputWaveVolts,axis=0)
@@ -466,7 +466,7 @@ def regenerateCable(f,fft,dF=5./512,length=513):
     outF2,newMag = regenerateCableLinMag(f,mag,dF=dF,length=length)
 
     if (outF1 != outF2).all():
-        print "tf.regenerateCable(): Frequency arrays don't match!"
+        print( "tf.regenerateCable(): Frequency arrays don't match!")
 
     fftNew = gainAndPhaseToComplex(newMag,newPhase)
 
@@ -601,7 +601,7 @@ def calcGroupDelay(inputFFT, inputF = [], dF = -1):
     phase = calcPhase(inputFFT)
     
     if inputF != [] and dF != -1:
-        print "WARNING IN tfUtils::calcGroupDelay - I'm going to use inputF to generate dF even though you also gave me dF"
+        print( "WARNING IN tfUtils::calcGroupDelay - I'm going to use inputF to generate dF even though you also gave me dF")
 
     if  inputF != []:
         dF = inputF[1]-inputF[0]
@@ -670,7 +670,7 @@ def lowPass(inputWaveX,inputWaveY,lpFilter=1.50):
     
     #this is a real butterworth filter
     lpFilter /= fMax #scale it by nyquist
-    print "lowpass filter value: "+str(lpFilter)
+    print( "lowpass filter value: "+str(lpFilter))
     b,a = signal.butter(5,lpFilter,'lowpass')
 
     filtered = signal.lfilter(b,a,inputWaveY,axis=0)
@@ -693,7 +693,7 @@ def printTimeDomainToFile(x,y,file):
     file = open(file,"w")
     
     if ( len(x) != len(y) ):
-        print "Warning: can't print, different lengths (+"+str(len(x))+" != "+str(len(y))+")"
+        print( "Warning: can't print, different lengths (+"+str(len(x))+" != "+str(len(y))+")")
         return -1
 
     for pt in zip(x,y):
@@ -809,7 +809,7 @@ def findPeakCorr(dataA,dataB,xMin=0,xMax=-1,roll=0,):
 
     xCorrY = np.roll(correlation(dataA,dataB),roll)[xMin:xMax]
 
-    if debug: print "findPeakCorr",np.argmax(xCorrY)
+    if debug: print( "findPeakCorr",np.argmax(xCorrY))
     
     params,rSq,peak = fitAndPinpoint(xCorrY)
     max = params[1]
@@ -889,7 +889,7 @@ def fitAndPinpoint(xCorrY,windowSize=5):
     
     #find the absolute peak of the correlation
     peak = np.argmax(xCorrY)
-    if debug: print "fitAndPinpoint(): peak=",peak
+    if debug: print( "fitAndPinpoint(): peak=",peak)
 
     #remember that a peak at len(xCorrY)/2 is "zero" offset!
     #okay now I'm pretty sure this isn't true
@@ -919,7 +919,7 @@ def fitAndPinpoint(xCorrY,windowSize=5):
     windowY = xCorrY[peak-windowSize:peak+windowSize+1]
     windowX = np.arange(-windowSize,windowSize+1)
 
-    if debug: print "fitAndPinpoint ",len(windowY),len(windowX)
+    if debug: print( "fitAndPinpoint ",len(windowY),len(windowX))
 
     #actually do the fit
     params,rSq = mf.fitGaussian(windowX,windowY,[guessA,guessB,guessC,guessD])
@@ -931,7 +931,7 @@ def fitAndPinpoint(xCorrY,windowSize=5):
 
 
     #Now the params you are returning are:
-    if debug: print "peak=",peak," peakValue=",peakValue," fitPeak=",params[1]
+    if debug: print( "peak=",peak," peakValue=",peakValue," fitPeak=",params[1])
 
 
     
@@ -1060,7 +1060,7 @@ def shiftToAlign(waveA,waveB):
 
     corr = correlation(waveAy,waveBy)
     params,rSq,peak = fitAndPinpoint(corr)
-    print "shiftToAlign():",len(waveBy)," ",peak
+    print( "shiftToAlign():",len(waveBy)," ",peak)
     resampledBy = resampleAtOffset(waveBy,params[1])
     shiftedBy = np.roll(resampledBy,len(resampledBy)/2-peak)
 
@@ -1183,7 +1183,7 @@ def complexZeroPadAndResample(inputF,inputFFT,sampleLength=1024,sampleResolu=0.1
 
 def fourierZeroPad(f,fft,numPads):
     #this doesn't work and does bad things
-    print "fourierPad doesn't work and does bad things"
+    print( "fourierPad doesn't work and does bad things")
     fftOut = np.concatenate((fft,np.zeros(numPads)))
     fOut = np.concatenate((f,np.arange(numPads)*(f[1]-f[0])+f[-1]))
 
@@ -1192,7 +1192,7 @@ def fourierZeroPad(f,fft,numPads):
 
 def fourierPad(f,fft,numPads,value):
     #this doesn't work and does bad things
-    print "fourierPad doesn't work and does bad things"
+    print( "fourierPad doesn't work and does bad things")
 
 #    realPad = np.arange(numPads,0,-1)*(value/numPads)
     realPad = np.ones(numPads)*value
@@ -1227,7 +1227,7 @@ def fourierExtrapolate(fftIn,numPads,fitStart=-1):
     else:
         fft = fftIn[:fitStart]
     p = mf.fitPoly3(np.arange(len(fft)),np.absolute(fft),[0,0,0,0])
-    print p
+    print( p)
     extrap = mf.lambdaPoly3(p[0],np.arange(len(fftIn)+numPads))
     extrap = hanningTail(extrap,len(fft),len(fft)+50)
 
@@ -1288,7 +1288,7 @@ def makeCausalFFT(fft,tZero):
     #minimum is when things are "most causal" (second half biggest than first half)
     maxCausal = np.argmin(causalityRatio)
     
-    print "Maximum causal waveform found at: ",shifts[maxCausal]
+    print( "Maximum causal waveform found at: ",shifts[maxCausal])
     shiftedFFT = fftPhaseShift(fft,shifts[maxCausal])
 
     return shiftedFFT
@@ -1342,7 +1342,7 @@ def compPhaseShifts(cableName):
 
 def compPhaseShifts2(cableName="A-C_PULSER-TEST_66DB.s2p"):
     max = compPhaseShifts(cableName)
-    print max
+    print( max)
     shiftedArrayMaxes = []
     shifts = np.arange(max-1,max+1,0.25)
     fig,ax = lab.subplots()
@@ -1466,10 +1466,11 @@ def compPhaseShifts3(y=[],center=[],save=False):
 
 def compPhaseShifts4(y):
 
+
     try:
         sns.set_palette(sns.color_palette("husl",20))
     except:
-	pass
+        pass
 
     fig,ax = lab.subplots()
     
@@ -1477,7 +1478,7 @@ def compPhaseShifts4(y):
     shifts = np.arange(-np.pi,np.pi,0.01)
 
     for tZero in range(310,330):
-        print tZero
+        print( tZero)
         causalityRatio = []
 
         for i in range(0,len(shifts)):
@@ -1663,7 +1664,7 @@ def fitParameters():
     files = glob.glob("waveforms/*avgSurf*")
     refWave = files[0]
     waveA = np.loadtxt(refWave).T
-    print "refWave",refWave
+    print ("refWave",refWave)
     
     fig,ax = lab.subplots(4)
     ax[0].plot(waveA[0],waveA[1],color="red")

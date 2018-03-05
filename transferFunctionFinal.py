@@ -21,7 +21,7 @@ functions, in addition to some classes that make plotting easier.
 
 Edited by John Russell.
 """
-
+import os as os
 import numpy as np
 import pylab as lab
 
@@ -39,7 +39,7 @@ import time #for drawing with a pause
 try:
     import seaborn as sns #just a pretty plotting package, it isn't important
 except:
-    print "You don't have seaborn but thats okay!"
+    print("You don't have seaborn but thats okay!")
 
 
 #==============================================================================
@@ -56,7 +56,8 @@ localDir = "../calibrationLinks/"
 # Where the cable info is stored.
 cablesBaseDir = localDir + "antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
 #cablesBaseDir = "/Volumes/ANITA3Data/antarctica14/S21ExternalRFChainForSingleChannelCallibration/"
-palCablesBaseDir = localDir + "palestine14/SeaveyAntennas/S21s/"
+palCablesBaseDir = os.environ['PALESTINE_DATA']
+#palCablesBaseDir = localDir + "palestine14/SeaveyAntennas/S21s/"
 palAntS11sDir = localDir + "palestine14/SeaveyAntennas/S11s/"
 
 
@@ -101,10 +102,10 @@ def findPalestineAntennaFile(chan, inOrOut):
 
     antennaNumber = int(antennaInfo.T[1][np.argwhere(antennaInfo.T[2]==chan[:3])[0][0]][1:])
 
-    print chan + " maps to antenna number " + str(antennaNumber)
+    print(chan + " maps to antenna number " + str(antennaNumber))
         
     if antennaNumber == 52:
-        print "Antenna 52 doesn't have any calibration associated with it :(, using 51 instead"
+        print("Antenna 52 doesn't have any calibration associated with it :(, using 51 instead")
         antennaNumber = 51
 
     dir = localDir + "palestine14/SeaveyAntennas/S21s/"
@@ -166,7 +167,7 @@ def importChamberAnts(fileName = localDir + roofDir + "HPulse_10degCCW_148p_090t
     """
     I always need to write more parsers, always be parsing (ABP)
     """
-    print "Importing locally -> " + fileName
+    print("Importing locally -> " + fileName)
 
     events = []
     event = ""
@@ -274,10 +275,10 @@ def getRegeneratedCables(fileName,dF=5./512.,length=513):
     cableNewFreq,cableNewFFT = tf.regenerateCable(cableFreq,cableFFT,dF=dF,length=length)
     
 
-    print "getRegeneratedCables(): dFin=:",cableFreq[1]-cableFreq[0]
-    print "getRegeneratedCables(): dFout=:",cableNewFreq[1]-cableNewFreq[0]
-    print "getRegeneratedCables(): len(f)in=:",len(cableFreq)
-    print "getRegeneratedCables(): len(f)out:",len(cableNewFreq)
+    print("getRegeneratedCables(): dFin=:",cableFreq[1]-cableFreq[0])
+    print("getRegeneratedCables(): dFout=:",cableNewFreq[1]-cableNewFreq[0])
+    print("getRegeneratedCables(): len(f)in=:",len(cableFreq))
+    print("getRegeneratedCables(): len(f)out:",len(cableNewFreq))
 
 
 
@@ -332,7 +333,7 @@ def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
     #For the long cables, there are two time domain pulses for some stupid reason
     #Maybe it wraps around?  Definitely an artifact at least... Windowing it out seems fair
     if hanning==True:
-        print "Doing hanning window"
+        print("Doing hanning window")
         hanningWidth = 100
         x,y = tf.genTimeSeries(fOut,fftOut)
         startLength = len(x)
@@ -344,7 +345,7 @@ def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
 
     #make it causal so it is all pretty :) 
     if tZero != False:
-        print "Making Causal with tZero=",tZero
+        print("Making Causal with tZero=",tZero)
         fftOut  = tf.makeCausalFFT(fftOut,tZero)
 
     """========================================================================
@@ -363,7 +364,7 @@ def getCablesOLD(fileName,tZero=False,hanning=False,resample=False):
     #I just want 0.1ns sampling and 1024 samples in the time domain so I'll just do that
     #This ALSO introduces a bunch of weird frequency response
     elif resample=="interp":
-        print "Interpolating..."
+        print("Interpolating...")
         x,y = tf.genTimeSeries(fOut,fftOut)
         peak = np.argmax(y)
         yInterp = Akima1DInterpolator(x,y) #has a weird frequency dependence
@@ -503,16 +504,16 @@ def processWaveform(graphT,graphV,source):
         kHanningWindow = False
         kPostZeroMean  = False
 
-    print "processWaveform(): Starting on " + source
+    print("processWaveform(): Starting on " + source)
 
     #print out what you got in initially
-    print "Initial: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
+    print("Initial: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT)))
 
     #pre-processing zero mean it
     if kPreZeroMean:
         initialMean = np.mean(graphV)
         graphV -= initialMean
-        print "PreZeroMean: "+str(initialMean)+" -> "+str(np.mean(graphV))
+        print("PreZeroMean: "+str(initialMean)+" -> "+str(np.mean(graphV)))
 
     #find frequency binning and do butterworth IIR filter
     if kBandPassFilter:
@@ -520,7 +521,7 @@ def processWaveform(graphT,graphV,source):
         dF = 1/tTotal
         fMax = (len(graphT)/2)*dF
         graphV = tf.nyquistLimit(graphV,fMax)
-        print "Filter: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
+        print("Filter: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT)))
         
     #downsample to 10GS/s [start:stop:step]
     #average together avgN points to get one point
@@ -533,7 +534,7 @@ def processWaveform(graphT,graphV,source):
         avgX = graphT[::avgN]+((avgN-1)*dT/2.)
         graphV = avgY
         graphT = avgX
-        print "Downsample: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
+        print("Downsample: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT)))
 
     #find max and do hanning window (cuts waveform to desired length too)
     if kHanningWindow:
@@ -541,7 +542,7 @@ def processWaveform(graphT,graphV,source):
         graphT,graphV = tf.zeroPadEqual(graphT,graphV,1024*3)
         graphMaxV = np.argmax(graphV)
         graphT,graphV = tf.hanningWindow(graphT,graphV,graphMaxV,512,slope=100)
-        print "Hanning: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
+        print("Hanning: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT)))
 
     #find max and do hanning window with SUPER SHARP EDGES(cuts waveform to desired length too)
     if kSlice:
@@ -549,7 +550,7 @@ def processWaveform(graphT,graphV,source):
         graphT,graphV = tf.zeroPadEqual(graphT, graphV, 1024 * 3)
         graphMaxV = np.argmax(graphV)
         graphT,graphV = tf.hanningWindow(graphT, graphV, graphMaxV + 240, 512, slope = 1)
-        print "Slice: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT))
+        print("Slice: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT)))
 
     #zero pad back to 1024 because I'm making my hanning window smaller (~50ns wide)
     if kZeroPad:
@@ -559,7 +560,7 @@ def processWaveform(graphT,graphV,source):
     if kPostZeroMean:
         initialMean = np.mean(graphV)
         graphV -= initialMean
-        print "PostZeroMean="+str(initialMean)+" -> "+str(np.mean(graphV))
+        print( "PostZeroMean="+str(initialMean)+" -> "+str(np.mean(graphV)))
 
     #make it start at zero (since all the other crap probably made it move)
     if kZeroStart:
@@ -607,14 +608,14 @@ def doTriggerChain(chan="16BH",showPlots=True):
 
     outRawX,outRawY,outRawF,outRawFFT = importScope(chan,2)
     outX,outY = processWaveform(outRawX,outRawY,"calScope")
-    print "len(outX)=",len(outX),"len(outRawX)=",len(outRawX)
+    print( "len(outX)=",len(outX),"len(outRawX)=",len(outRawX))
     outF,outFFT = tf.genFFT(outX,outY)
-    print "len(outF)=",len(outF),"outdF=",outF[1]-outF[0]
+    print( "len(outF)=",len(outF),"outdF=",outF[1]-outF[0])
 
     #output signal went through a ton of cables first so pump that back up
     # output = signal + cables |SO THEREFORE| signal = output - cables
     outCablesF,outCablesFFT = getRegeneratedCables("CABLE_REF_TO_SCOPE.s2p")
-    print "len(outCablesF)=",len(outCablesF)," len(outF)=",len(outF)
+    print( "len(outCablesF)=",len(outCablesF)," len(outF)=",len(outF))
     outFFT /= outCablesFFT
 
     #now you know what went in and out without cables, so transfer function!
@@ -658,7 +659,7 @@ def doTriggerChain(chan="16BH",showPlots=True):
     #correct for the attenuator that isn't included:
     attens = importAttenInfo()
     value = float(attens[chan][1]) #power loss in dB.  dB = 20*log10(V/V) -> 10^(dB/20) = V/V
-    print "Attenuator value: ",value
+    print( "Attenuator value: ",value)
     tfFFT /= 10.**(value/20.)
 
 
@@ -761,7 +762,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
 #    global cableScopeF #once upon a time regenerating the cables took awhile
 #    global cableScopeFFT
 #    if type(cableScopeF) != np.ndarray:
-    print "Getting Pulser to Scope Cables..."
+    print( "Getting Pulser to Scope Cables...")
 #        cableScopeF,cableScopeFFT= getCables\\\\\\\("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
     cableScopeRawF,cableScopeRawG,cableScopeRawP = s2pParser(cablesBaseDir+"A-B_PULSER-SCOPE.s2p")
     cableScopeRawGD = tf.calcGroupDelayFromPhase(np.unwrap(cableScopeRawP),dF=np.diff(cableScopeRawF)[0])
@@ -773,7 +774,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
 #    global P2AF
 #    global P2AFFT
 #    if type(P2AF) != np.ndarray:
-    print "Getting Pulser to Ampa Cables..."
+    print( "Getting Pulser to Ampa Cables...")
 #        P2AF,P2AFFT= getCables("A-C_PULSER-TEST_66DB.s2p",tZero=True,hanning=True,resample="fftFit")
     cableAmpaFile = "A-C_PULSER-TEST_56DB.s2p"
     cableAmpaRawF,cableAmpaRawG,cableAmpaRawP = s2pParser(cablesBaseDir+cableAmpaFile)
@@ -906,9 +907,9 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
 
     #get the surf (extracted from ROOT data from another script)
     surfRawX,surfRawY,surfRawF,surfRawFFT = importSurf(chan)
-    print " /|\ /|\ /|\ /|\ ",len(surfRawX),np.diff(surfRawX)[0]
+    print( " /|\ /|\ /|\ /|\ ",len(surfRawX),np.diff(surfRawX)[0])
     surfX,surfY = processWaveform(surfRawX,surfRawY,"surf")
-    print " /|\ /|\ /|\ /|\ ",len(surfX),np.diff(surfX)[0]
+    print( " /|\ /|\ /|\ /|\ ",len(surfX),np.diff(surfX)[0])
 
     surfY *= (1./1000) #lets go to V for a sec
     surfF,surfFFT = tf.genFFT(surfX,surfY)
@@ -942,8 +943,8 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
             figS.show()
 
 
-    print "*************",len(surfF),":",np.diff(surfF)[0],len(ampaInputF),":",np.diff(ampaInputF)[0]
-    print "*************",len(surfFFT),len(ampaInputFFT)
+    print( "*************",len(surfF),":",np.diff(surfF)[0],len(ampaInputF),":",np.diff(ampaInputF)[0])
+    print( "*************",len(surfFFT),len(ampaInputFFT))
 
     #deconvolve signal chain transfer function out of that!
     tfFFT = surfFFT/ampaInputFFT
@@ -1222,7 +1223,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     
     antTFFFT *= dist
 
-    print "length antTFFFT:",len(antTFFFT)
+    print( "length antTFFFT:",len(antTFFFT))
 
     if showPlots and 1:
         figDist,axDist = lab.subplots()
@@ -1254,7 +1255,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     #10BH is upside down?
     #A bunch are actually!  Nothing here constrains absolute polarity
     if np.max(antTFY) < -np.min(antTFY):
-        print "Flipped!"
+        print( "Flipped!")
         antTFY *= -1
 
 
@@ -1403,7 +1404,7 @@ def palAntCables(showPlots=False):
     inputY = np.roll(inputY,25-np.argmax(inputY))
     inputX = np.arange(0,1024)*np.diff(inputX)[0]
     inputY = inputY[:1024]
-    print "input: len=",len(inputX), " dT=",np.diff(inputX)[0]
+    print("input: len=",len(inputX), " dT=",np.diff(inputX)[0])
     inputF,inputFFT = tf.genFFT(inputX,inputY)
 
     #output pulse (after going through ALL cables)
@@ -1411,7 +1412,7 @@ def palAntCables(showPlots=False):
     outputY = np.roll(outputY,25-np.argmax(outputY))
     outputX = outputX[:1024]
     outputY = outputY[:1024]
-    print "output: len=",len(outputX), " dT=",np.diff(outputX)[0]
+    print("output: len=",len(outputX), " dT=",np.diff(outputX)[0])
     outputF,outputFFT = tf.genFFT(outputX,outputY)
 
     #output pulse had a 20dB attenuator on it that isn't in the full setup
@@ -1456,7 +1457,7 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
     antX,antY,antF,antFFT = doPalAnt(chan,showPlots=showPlots,savePlots=savePlots,writeFiles=writeFiles)
     
     #get sig chain
-    print "doSigChainAndAntenna:getSigChain"
+    print("doSigChainAndAntenna:getSigChain")
     sigChainX,sigChainY,sigChainF,sigChainFFT = doSigChainWithCables(chan,showPlots=showPlots,savePlots=savePlots,writeFiles=writeFiles)
 
     #convolve the two (full ANITA3 transfer function!)
@@ -1613,7 +1614,7 @@ def alignWaveforms(allChans,showPlots=False):
 
     outChans2 = {}
     for chan in allChans:
-        print chan
+        print(chan)
         outChans2[chan] = tf.shiftToAlign(allChans["01BH"],allChans[chan])
 
 
@@ -1650,8 +1651,8 @@ def alignWaveforms(allChans,showPlots=False):
     
         highWeird.sort()
         lowWeird.sort()
-        print len(highWeird),highWeird
-        print len(lowWeird),lowWeird
+        print(len(highWeird),highWeird)
+        print(len(lowWeird),lowWeird)
 
         fig.show()
 
@@ -1671,7 +1672,7 @@ def doAllInstrumentHeight(savePlots=False,showPlots=False,writeFiles=False):
         try:
             allChans[chan] = doSigChainAndAntenna(chan,savePlots=savePlots,showPlots=showPlots,writeFiles=writeFiles)
         except:
-            print chan+" FAILED"
+            print(chan+" FAILED")
 
 
     allChansAligned = alignWaveforms(allChans)
@@ -1688,7 +1689,7 @@ def doAllSigChains(savePlots=False,showPlots=False):
         try:
             allChans[chan] = doSigChainWithCables(chan,savePlots=savePlots,showPlots=showPlots)[:2]
         except:
-            print chan+" FAILED************************************************"
+            print(chan+" FAILED************************************************")
 
     return allChans
 
@@ -1701,7 +1702,7 @@ def doAllAntennas(savePlots=False,showPlots=False):
         try:
             allChans[chan] = doPalAnt(chan,showPlots=showPlots,savePlots=savePlots)[:2]
         except:
-            print chan+" FAILED************************************************"
+            print(chan+" FAILED************************************************")
 
     return allChans
 
@@ -1762,7 +1763,7 @@ def writeOne(wave,chan,prefix):
     for i in range(0,len(wave[0])):
         file.write(str(wave[0][i])+" "+str(wave[1][i])+"\n")
     file.close()
-    print "wrote "+chan+" to file"
+    print("wrote "+chan+" to file")
 
     return
 
@@ -1775,7 +1776,7 @@ def writeAll(allChans,prefix):
         try:
             writeOne(allChans[chan],chan,prefix)
         except:
-            print chan+" FAILED"
+            print(chan+" FAILED")
 
 
 def saveAllNicePlots(allChans):
@@ -1794,7 +1795,7 @@ def saveAllNicePlots(allChans):
     a1F,a1FFT = tf.genFFT(a1X,a1Y)
 
     for chan in allChans:
-        print chan
+        print( chan)
 
         a3X = allChans[chan][0]
         a3Y = allChans[chan][1]
@@ -1861,7 +1862,7 @@ def plotCompare(allChans,savePlots=False,ant=False,sig=False,tFunc=False):
     try:
         sns.set_palette(sns.color_palette("husl", n_colors=16)[::-1])
     except:
-        print "couldn't set palette"
+        print( "couldn't set palette")
         pass
 
     lab.close("all")
@@ -1903,7 +1904,7 @@ def plotCompare(allChans,savePlots=False,ant=False,sig=False,tFunc=False):
         #get them to overlay
 #        argMax = np.argmax(waveY)
         argMax = np.argmax(tf.correlation(allChans["01BH"][1],allChans[chan][1]))
-#        print argMax
+#        print(argMax)
         if chan!="01BH":
             waveY = np.roll(waveY,-argMax)
             
@@ -2133,7 +2134,7 @@ def phaseShifts(waveform):
     cnt = 0
     fig2,ax2 = lab.subplots()
     for shift in shifts:
-        print shift
+        print(shift)
         shiftedFFT = tf.fftPhaseShift(waveformFFT,shift)
         shiftedWave = tf.fftw.irfft(shiftedFFT)
         ax2.plot(waveform[0]+cnt*waveform[0][-1],np.roll(shiftedWave,512))
@@ -2166,7 +2167,7 @@ def importAndPlotSurfs():
         try:
             x,y,f,fft = importSurf(chan)
         except:
-            print chan+" missing"
+            print(chan+" missing")
 
         if index<48:
             ax[index/8][index%8].plot(x,y)
@@ -2190,7 +2191,7 @@ def importAndPlotSurfs():
 def fourierZeroPadding():
 
     a,b,f,fft = getCables("A-B_PULSER-SCOPE.s2p")
-    print len(fft)
+    print(len(fft))
     f2,fft2 = tf.fourierZeroPad(f,fft,len(fft)*3)
 
     fig,ax = lab.subplots(2)
@@ -2214,7 +2215,7 @@ def fourierCausalPadding():
     fft = tf.gainAndPhaseToComplex(cableGainLin,cablePhase)
     
     ampliToExtrapolate = np.absolute(fft[-1])
-    print ampliToExtrapolate
+    print(ampliToExtrapolate)
     f2,fft2 = tf.fourierPad(f,fft,len(fft)*9,ampliToExtrapolate)
 
     fig,ax = lab.subplots(3)
@@ -2246,7 +2247,7 @@ def calibrationPulseSignal(chan):
     #Get the cable's (H(f) transfer function for pulser to scope)
     #The 17 (for the "center") is from tf.compPhaseShifts3(), which makes a nice film of where the 
     # phase center is
-    print "Getting Pulser to Scope Cables..."
+    print("Getting Pulser to Scope Cables...")
     cableScopeF,cableScopeFFT= getCables("A-B_PULSER-SCOPE.s2p",tZero=17,resample="interp")
 
     #deconvolve cable pulse * cable = scope -> pulse = scope/cable
@@ -2299,8 +2300,8 @@ def weinerDeconv(sigInX, sigInY, chan):
     ax[1].plot(sigOutX,sigOutY)
     fig.show()
 
-    print "inputPeakRatio",np.max(sigInY**2)/np.mean(sigInY**2)
-    print "outputPeakRatio",np.max(sigOutY**2)/np.mean(sigOutY**2)
+    print("inputPeakRatio",np.max(sigInY**2)/np.mean(sigInY**2))
+    print("outputPeakRatio",np.max(sigOutY**2)/np.mean(sigOutY**2))
 
     return sigOutX,sigOutY,sigInFFT,sigOutFFT,G,snrMag,tfMag
 
@@ -2377,7 +2378,7 @@ def makeWaveform(length=513,dF=5./512):
             
     phaseArray = (2*fArray)**(1-np.absolute(np.cumsum(np.gradient(magArray))))
 
-    print phaseArray
+    print(phaseArray)
 
         
     fft = tf.gainAndPhaseToComplex(magArray,phaseArray)
@@ -2440,7 +2441,7 @@ def plotSavedFiles(baseName="avgSurfWaveform",dir="waveforms_new"):
 
     files = glob(dir+"/*"+baseName+"*")
 
-    print files
+    print(files)
 
     allChans = {}
 
@@ -2449,7 +2450,7 @@ def plotSavedFiles(baseName="avgSurfWaveform",dir="waveforms_new"):
             name = file.split("/")[-1].split("_")[1].split(".")[0]
         except:
             name = file.split("/")[-1].split(".")[0]
-        print name
+        print(name)
         if (name == "all"):
             continue
         data = np.loadtxt(file).T
@@ -2495,7 +2496,7 @@ def plotSavedChannelWithMean(chan,prefix="transferFunctions/normSigChain_"):
     f,logMag = tf.genLogMag(data[0],data[1])    
 
     mean = 10*np.log10(np.mean(10**(logMag/10.)))
-    print "mean=",mean
+    print("mean=",mean)
     
     fig,ax = lab.subplots()
     ax.set_title(chan)
@@ -2527,7 +2528,7 @@ def slidingMeanWindow(chan,prefix="transferFunctions/normSigChain_"):
         means.append(np.mean(10**((logMag[i:i+100])/10.)))
     
 
-    print np.max(10*np.log10(means))
+    print(np.max(10*np.log10(means)))
 
     fig,ax = lab.subplots()
     ax.plot(startFreqs,10*np.log10(means),color="blue")
@@ -2584,7 +2585,7 @@ def importAttenInfo(showPlots=False):
     for chan in attenInfo.T:
         outInfo[chan[0]] = chan[1:]
 
-    print outInfo
+    print(outInfo)
 
     if showPlots:
         fig,ax = lab.subplots()
@@ -2604,7 +2605,7 @@ def genTriggerGains(allSigChains):
     for chanKey in attenInfo:
         max = np.max(tf.genLogMag(allSigChains[chanKey][0],allSigChains[chanKey][1])[1])
         maxes.append(float(max))
-        print chanKey,max,attenInfo[1][i],max+float(attenInfo[1][i])
+        print( chanKey,max,attenInfo[1][i],max+float(attenInfo[1][i]))
         modMaxes.append(float(max-float(attenInfo[1][i])+8))
 
     fig,ax = lab.subplots()

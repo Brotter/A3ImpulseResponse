@@ -3,7 +3,7 @@ Script written by John Russell which includes functions specific to ANITA-4 over
 ANITA-3. Takes some functions from Ben Rotter's "transferFunctionFinal.py" and
 modifies them for ANTIA-4 usage.
 """
-
+import os as os # import this to use environmental variables for portability (define $PALESTINE_DATA where all the CSBF16 stuff is)
 import numpy as np
 import pylab as lab
 import tfUtils as tfu
@@ -32,15 +32,19 @@ waveformDir = localDir + "waveforms/"
 
 def findPalestineAntennaFile(chan, inOrOut):
     antennaInfo = np.loadtxt(A4Dir + "ANITA4-Antenna-assignments.csv",
-                             dtype = str, delimiter = ",")
+                             dtype = bytes, delimiter = ",").astype(str)
 
     antennaSN = str(antennaInfo.T[3][np.argwhere(antennaInfo.T[2]==chan[:3])[0][0]])
 
-    dir = localDir + "CSBF16/OFF-BS-PLSR/"
+    antdir = '{0}/OFF-BS-PLSR/'.format(os.environ['PALESTINE_DATA'])
+
     if inOrOut == "in":
-        fileName = dir + "CALIBRATION/06_22-INPUT_PULSE_20dB_DOWN-waveform.csv"
+        fileName = antdir + "CALIBRATION/06_22-INPUT_PULSE_20dB_DOWN-waveform.csv"
     if inOrOut == "out":
-        fileName = dir + "SN" + antennaSN + "/V-TRANS/waveform/06_23-el_0-az_0-V-C-waveform.csv"
+        if antennaSN == "216507":
+            fileName = antdir + "SN" + antennaSN + "/V-TRANS/waveform/06_23-el_0-az_0-V-C-waveform.csv"
+        else:
+            fileName = antdir + "SN" + antennaSN + "/V-TRANS/waveform/06_30-el_0-az_0-V-C-waveform.csv"
  
     return fileName
 
@@ -199,11 +203,11 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     """
     
     #need to take out 1/R flight distance for absolute gain
-    # According to notes, 8.89m face to face flight distance
-    # Antennas have a depth of 22" = 0.5588m, so r(f) should have two points, (0.180,8.89) and (1.2,10)
+    # According to notes, ~5.203m face to face flight distance
+    # Antennas have a depth of 22" = 0.5588m, so r(f) should have two points, (0.180,5.203) and (1.2,10)
     # makes it in units of "meters squared"
     distM = (0.5588*2)/(1.2-0.18)
-    distYint = 8.89 - distM*0.18
+    distYint = 5.203 - distM*0.18
     dist = antTFF*distM + distYint
     for i in range(0,len(dist)):
         if dist[i] > 10.5:
@@ -211,7 +215,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     
     antTFFFT *= dist
 
-    print "length antTFFFT:",len(antTFFFT)
+    print ("length antTFFFT:",len(antTFFFT))
 
     if showPlots and 1:
         figDist,axDist = lab.subplots()
@@ -239,7 +243,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     #10BH is upside down?
     #A bunch are actually!  Nothing here constrains absolute polarity
     if np.max(antTFY) < -np.min(antTFY):
-        print "Flipped!"
+        print ("Flipped!")
         antTFY *= -1
     
     antTFF,antTFFFT = tfu.genFFT(antTFX,antTFY)
@@ -321,6 +325,68 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
         
         return antTFX,antTFY,antTFF,antTFFFT
 
+def palAntCables(showPlots=False):
+    """
+        
+
+    """
+
+    #input pulse (with coupler like always)
+    inputX,inputY = tff.palAntImporter('OFF-BS-PLSR/CALIBRATION/06_22-INPUT_PULSE_20dB_DOWN-waveform.csv')
+    #inputY *= -1 #it is flipped?
+    inputY = np.roll(inputY,25-np.argmax(inputY))
+    inputX = np.arange(0,1024)*np.diff(inputX)[0]
+    inputY = inputY[:1024]
+    zeroMean = np.mean(inputY)
+    inputY -= zeroMean
+    print( "input: len=",len(inputX), " dT=",np.diff(inputX)[0])
+    inputF,inputFFT = tfu.genFFT(inputX,inputY)
+
+    #output pulse (after going through ALL cables)
+    outputX,outputY = tff.palAntImporter('OFF-BS-PLSR/CALIBRATION/06_22-BARREL_CAL-V-C-waveform.csv')
+    outputY = np.roll(outputY,25-np.argmax(outputY))
+    #outputX = outputX[:1024]
+    outputX = np.arange(0,1024)*np.diff(outputX)[0]
+    outputY = outputY[:1024]
+    zeroMean = np.mean(outputY)
+    outputY -= zeroMean
+    print( "output: len=",len(outputX), " dT=",np.diff(outputX)[0])
+    outputF,outputFFT = tfu.genFFT(outputX,outputY)
+
+    #output pulse had a 20dB attenuator on it that isn't in the full setup
+#    atten = 20.
+#    outputFFT *= 10**(atten/20)
+
+    outputX,outputY = tfu.genTimeSeries(outputF,outputFFT)
+    
+    tfF = outputF
+    tfFFT = outputFFT/inputFFT
+
+    tfX,tfY = tfu.genTimeSeries(tfF,tfFFT)
+
+    if (showPlots):
+        fig,ax = lab.subplots(2,2)
+        
+        ax[0][0].plot(inputX,inputY,label="direct from coupler")
+        ax[0][0].plot(outputX,outputY,label="through all cables")
+        ax[0][0].legend()
+        
+        inputLogMag = tfu.calcLogMag(inputF,inputFFT)
+        outputLogMag = tfu.calcLogMag(outputF,outputFFT)
+        ax[0][1].plot(inputF,inputLogMag,label="direct from coupler")
+        ax[0][1].plot(outputF,outputLogMag,label="through all cables")
+        ax[0][1].legend()
+                
+#        ax[1][0].plot(tfX,tfY,label="transFunc")
+#        ax[1][0].legend()
+        
+        tfLogMag = tfu.calcLogMag(tfF,tfFFT)
+        ax[1][1].plot(tfF,tfLogMag,label="trans func")
+        ax[1][1].legend()
+        
+        fig.show()
+
+    return tfF,tfFFT
 
 """
   Evaluating the transfer function chain for a TUFF. Assumes input frequency array

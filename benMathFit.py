@@ -143,7 +143,7 @@ def turnOnTime(data):
     for n in range(0,len(data_time)):
         if data_voltage_pwrdtr[n]>=0.2:
             turnon_point=n
-            print data_voltage_pwrdtr[n],data_time[n],n
+            print( data_voltage_pwrdtr[n],data_time[n],n)
             break
     turnoff_point=turnon_point+100
     return turnon_point
