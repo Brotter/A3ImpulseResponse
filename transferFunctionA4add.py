@@ -95,6 +95,53 @@ def importPalAntOut(chan):
 # Processing.
 #==============================================================================
 
+def addToArray(array, fname):
+    tempIn = np.genfromtxt(fname, delimiter=" ")
+    array += tempIn.T[1]
+    return array
+
+def makePalAntAverageTranferFunction(savePlots=False, showPlots=False, writeFiles=False):
+    
+    tempIn = np.genfromtxt("transferFunctions/palAntA4_02T.txt", delimiter=" ")
+    inX = tempIn.T[0]
+    inY = tempIn.T[1]
+
+    inY = addToArray(inY, "transferFunctions/palAntA4_07T.txt")
+    inY = addToArray(inY, "transferFunctions/palAntA4_12M.txt")
+    inY = addToArray(inY, "transferFunctions/palAntA4_13M.txt")
+    inY /= 4
+    
+    inF,inFFT = tfu.genFFT(inX,inY)
+    
+    if savePlots or showPlots:
+        fig0,ax0 = lab.subplots(3,1)
+
+        ax0[0].plot(inX,inY,label="average wf",color="red")
+        ax0[0].set_xlim([0,25])
+        ax0[0].set_xlabel("Time (ns)")
+        ax0[0].set_ylabel("Voltage (V)")
+        ax0[0].legend(loc="lower right")
+
+        ax0[1].plot(inF,tfu.calcSpecMag(inF,inFFT),label="average transfer fn",color="red")
+        ax0[1].set_ylabel("Spectral Magnitude \n [dBm/Hz]")
+        ax0[1].legend()
+
+        ax0[2].plot(inF,tfu.calcGroupDelay(inFFT,inputF=inF),label="average transfer fn",color="blue")
+        ax0[2].set_ylabel("Group Delay (ns)")
+        ax0[2].legend()
+
+        if showPlots:
+            fig0.show()
+            fig0.tight_layout()
+            fig0.canvas.draw()
+        if savePlots:
+            fig0.savefig("plots/doPalAnt_averageTF.png")
+
+    if writeFiles:
+        tff.writeOne([inX,inY],"","palAntA4Average")
+
+    return inX, inY
+
 
 """
   Develop a transfer function for an antenna measured in palestine 2016, mapped to channel.
@@ -134,11 +181,10 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
 #    outFFT = tfu.minimizeGroupDelayFromFFT(outF,outFFT)
 
-    #cables
-    cablesF,cablesFFT = palAntCables(showPlots=showPlots)
-
-    outFFT /= cablesFFT
-    outX,outY = tfu.genTimeSeries(outF, outFFT)
+    #cables (i don't want to use cables, it makes the transfer functions ugly)
+#    cablesF,cablesFFT = palAntCables(showPlots=showPlots)
+#    outFFT /= cablesFFT
+#    outX,outY = tfu.genTimeSeries(outF, outFFT)
 
     if savePlots or showPlots:
         fig0,ax0 = lab.subplots(3,2)
@@ -218,7 +264,9 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     distAntToAnt = 5.203
     antDepth = 0.5588
     maxFlightDist = distAntToAnt + 2 * antDepth
-    dist = 2*antDepth*(1 - (1.2 - antTFF)/(1.2 - .18)) + distAntToAnt
+    maxAntFreq = 1.3
+    minAntFreq = .18
+    dist = 2*antDepth*(1 - (maxAntFreq - antTFF)/(maxAntFreq - minAntFreq)) + distAntToAnt
     for i in range(0,len(dist)):
         if dist[i] > maxFlightDist:
             dist[i] = maxFlightDist
@@ -331,7 +379,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
             fig.savefig("plots/doPalAnt_TF"+chan+".png")
         
         if writeFiles:
-            tff.writeOne([antTFX,antTFY],chan,"palAnt")
+            tff.writeOne([antTFX,antTFY],chan,"palAntA4")
         
         return antTFX,antTFY,antTFF,antTFFFT
 
