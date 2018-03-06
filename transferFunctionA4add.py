@@ -7,6 +7,7 @@ import os as os # import this to use environmental variables for portability (de
 import numpy as np
 import pylab as lab
 import tfUtils as tfu
+from scipy import interpolate
 import transferFunctionFinal as tff  #  This is to reference what Ben has already done.
 
 
@@ -36,15 +37,17 @@ def findPalestineAntennaFile(chan, inOrOut):
 
     antennaSN = str(antennaInfo.T[3][np.argwhere(antennaInfo.T[2]==chan[:3])[0][0]])
 
-    antdir = '{0}/OFF-BS-PLSR/'.format(os.environ['PALESTINE_DATA'])
+    antdir = '{0}'.format(os.environ['PALESTINE_DATA'])
 
+    if inOrOut == "S21":
+        fileName = antdir + "/BS/CSBF16_SN" + antennaSN + ".V.C.csv"
     if inOrOut == "in":
-        fileName = antdir + "CALIBRATION/06_22-INPUT_PULSE_20dB_DOWN-waveform.csv"
+        fileName = antdir + "/OFF-BS-PLSR/CALIBRATION/06_22-INPUT_PULSE_20dB_DOWN-waveform.csv"
     if inOrOut == "out":
         if antennaSN == "216507":
-            fileName = antdir + "SN" + antennaSN + "/V-TRANS/waveform/06_23-el_0-az_0-V-C-waveform.csv"
+            fileName = antdir + "/OFF-BS-PLSR/SN" + antennaSN + "/V-TRANS/waveform/06_23-el_0-az_0-V-C-waveform.csv"
         else:
-            fileName = antdir + "SN" + antennaSN + "/V-TRANS/waveform/06_30-el_0-az_0-V-C-waveform.csv"
+            fileName = antdir + "/OFF-BS-PLSR/SN" + antennaSN + "/V-TRANS/waveform/06_30-el_0-az_0-V-C-waveform.csv"
  
     return fileName
 
@@ -90,17 +93,53 @@ def importPalAntOut(chan):
 
     return dataX, dataY, dataF, dataFFT
 
+def importPalAntS21(chan):
+    """
+      Palestine Antennas on BS data
+    """
+
+    fileName = findPalestineAntennaFile(chan,"S21")
+
+    freq = []
+    mag = []
+    n = 0
+    with open(fileName) as inFile:
+        for line in inFile:
+            if(line[0] == 'E' and n > 0):
+                break
+            if(line[0] != '!' and line[0] != 'B'):
+                split = line.split(',')
+                freq.append(float(split[0])/1e9)
+                mag.append(float(split[1].strip()))
+                n+=1
+
+    return np.array(freq), np.array(mag)
 
 #==============================================================================
 # Processing.
 #==============================================================================
 
+"""
+Used by makePalAntAverageTransferFunction, unimportant
+"""
 def addToArray(array, fname):
     tempIn = np.genfromtxt(fname, delimiter=" ")
     array += tempIn.T[1]
     return array
 
-def makePalAntAverageTranferFunction(savePlots=False, showPlots=False, writeFiles=False):
+"""
+Used by makePalAntAverageWaveform, unimportant
+"""
+def addToArray2(array, chan):
+    inX,inY=importPalAntS21(chan)
+    array += inY
+    return array
+
+"""
+  Develop an average transfer function from the transfer functions of antennas measured in palestine 2016.
+  Normalized to V/m (saved in V - ns fomat)
+"""
+def makePalAntAverageTransferFunction(savePlots=False, showPlots=False, writeFiles=False):
     
     tempIn = np.genfromtxt("transferFunctions/palAntA4_02T.txt", delimiter=" ")
     inX = tempIn.T[0]
@@ -139,6 +178,23 @@ def makePalAntAverageTranferFunction(savePlots=False, showPlots=False, writeFile
 
     if writeFiles:
         tff.writeOne([inX,inY],"","palAntA4Average")
+
+    return inX, inY
+
+"""
+  Create an average waveform function from the waveforms of antennas measured in palestine 2016.
+"""
+def makePalAntAverageS21(writeFiles=False):
+    
+    inX,inY=importPalAntS21("02T")
+
+    inY = addToArray2(inY, "07T")
+    inY = addToArray2(inY, "12M")
+    inY = addToArray2(inY, "13M")
+    inY /= 4
+    
+    if writeFiles:
+        tff.writeOne([inX,inY],"","palAntA4AverageS21")
 
     return inX, inY
 
@@ -445,6 +501,44 @@ def palAntCables(showPlots=False):
         fig.show()
 
     return tfF,tfFFT
+
+"""
+This is for generating the antenna responses for antennas we didn't record phase info for.  It keeps the phase information from the average transfer function and scales the gain by the antenna gain we measured 
+"""
+
+def doAntPalWithAveragePhase(chan, showPlots=False, savePlots=False, writeToFile=False):
+    # load up average transfer function
+    tempIn = np.genfromtxt("transferFunctions/palAntA4Average_.txt", delimiter=" ")
+    tfX = tempIn.T[0]
+    tfY = tempIn.T[1]
+    tfF,tfFFT = tfu.genFFT(tfX,tfY)
+    
+    # load up average waveform
+    tempInWF = np.genfromtxt("transferFunctions/palAntA4AverageS21_.txt", delimiter=" ")
+    aveF = tempInWF.T[0]
+    aveFFTLog = tempInWF.T[1]
+    aveFFT = 10.**(aveFFTLog/20.)
+
+    #load up S21 of the channel you want
+    antF,antFFTLog=importPalAntS21(chan)
+    antFFT = 10.**(antFFTLog/20.)
+    antFFT /= aveFFT
+    fnew = interpolate.interp1d(antF, antFFT)
+    
+    for i in range(len(tfF)):
+        if tfF[i] >=.18 and tfF[i] <= 1.3:
+            m = np.absolute(tfFFT[i]) * fnew(antFFT[i])
+            p = np.angle(tfFFT[i])
+            tfFFT[i] = m*np.cos(p) + m*np.sin(p)*1j
+        if tfF[i] > 1.3:
+            break
+
+
+    tfX,tfY = tfu.genTimeSeries(tfF, tfFFT)
+    if writeToFile:
+        tff.writeOne([tfX,tfY],chan,"palAntA4")
+        
+    return tfX,tfY,tfF,tfFFT
 
 """
   Evaluating the transfer function chain for a TUFF. Assumes input frequency array
