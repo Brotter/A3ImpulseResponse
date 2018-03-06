@@ -110,6 +110,8 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
     inX,inY = tff.processWaveform(inRawX,inRawY,"palin")
     inY = np.roll(inY,30-np.argmax(inY))
+    inX = inX[:1024]
+    inY = inY[:1024]
 
     inF,inFFT = tfu.genFFT(inX,inY)
     # Increase by 20dB (from coupler)
@@ -125,12 +127,18 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     outX,outY = tff.processWaveform(outRawX,outRawY,"palout")
     outY = np.roll(outY,50-np.argmax(outY))
 #    outY = tfu.hanningTail(outY,130,30)
-##    outX = outX[:1024]
-##    outY = outY[:1024]
+    outX = outX[:1024]
+    outY = outY[:1024]
 #    outY = tfu.highPass(outX,outY)
     outF,outFFT = tfu.genFFT(outX,outY)
 
 #    outFFT = tfu.minimizeGroupDelayFromFFT(outF,outFFT)
+
+    #cables
+    cablesF,cablesFFT = palAntCables(showPlots=showPlots)
+
+    outFFT /= cablesFFT
+    outX,outY = tfu.genTimeSeries(outF, outFFT)
 
     if savePlots or showPlots:
         fig0,ax0 = lab.subplots(3,2)
@@ -204,14 +212,16 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     
     #need to take out 1/R flight distance for absolute gain
     # According to notes, ~5.203m face to face flight distance
-    # Antennas have a depth of 22" = 0.5588m, so r(f) should have two points, (0.180,5.203) and (1.2,10)
+    # Antennas have a depth of 22" = 0.5588m, so r(f) should have two points, (0.180,5.203) and (1.2,5.203 + 2*0.5588)
     # makes it in units of "meters squared"
-    distM = (0.5588*2)/(1.2-0.18)
-    distYint = 5.203 - distM*0.18
-    dist = antTFF*distM + distYint
+    #I'm not convinced ben did this quite right so i changed it
+    distAntToAnt = 5.203
+    antDepth = 0.5588
+    maxFlightDist = distAntToAnt + 2 * antDepth
+    dist = 2*antDepth*(1 - (1.2 - antTFF)/(1.2 - .18)) + distAntToAnt
     for i in range(0,len(dist)):
-        if dist[i] > 10.5:
-            dist[i] = 10.5
+        if dist[i] > maxFlightDist:
+            dist[i] = maxFlightDist
     
     antTFFFT *= dist
 
