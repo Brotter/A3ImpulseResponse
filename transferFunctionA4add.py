@@ -36,19 +36,29 @@ def findPalestineAntennaFile(chan, inOrOut):
                              dtype = bytes, delimiter = ",").astype(str)
 
     antennaSN = str(antennaInfo.T[3][np.argwhere(antennaInfo.T[2]==chan[:3])[0][0]])
+    pol = chan[3]
 
     antdir = '{0}'.format(os.environ['PALESTINE_DATA'])
 
     if inOrOut == "S21":
-        fileName = antdir + "/BS/CSBF16_SN" + antennaSN + ".V.C.csv"
+        if pol == "H":
+            fileName = antdir + "/BS/CSBF16_SN" + antennaSN + ".H.C.csv"
+        if pol == "V":
+            fileName = antdir + "/BS/CSBF16_SN" + antennaSN + ".V.C.csv"
+
     if inOrOut == "in":
         fileName = antdir + "/OFF-BS-PLSR/CALIBRATION/06_22-INPUT_PULSE_20dB_DOWN-waveform.csv"
+
     if inOrOut == "out":
-        if antennaSN == "216507":
-            fileName = antdir + "/OFF-BS-PLSR/SN" + antennaSN + "/V-TRANS/waveform/06_23-el_0-az_0-V-C-waveform.csv"
-        else:
-            fileName = antdir + "/OFF-BS-PLSR/SN" + antennaSN + "/V-TRANS/waveform/06_30-el_0-az_0-V-C-waveform.csv"
- 
+        if (antennaSN == "216501" or antennaSN == "216507") and pol == "H":
+            fileName = antdir + "/OFF-BS-PLSR/SN" + antennaSN + "/H-TRANS/waveform/06_28-el_0-az_0-" + pol + "-C-waveform.csv"
+        if (antennaSN == "208552" or antennaSN == "216513") and pol == "H":
+            fileName = antdir + "/OFF-BS-PLSR/SN" + antennaSN + "/H-TRANS/waveform/06_29-el_0-az_0-" + pol + "-C-waveform.csv"
+        if antennaSN == "216507" and pol == "V":
+            fileName = antdir + "/OFF-BS-PLSR/SN" + antennaSN + "/V-TRANS/waveform/06_23-el_0-az_0-" + pol + "-C-waveform.csv"
+        if antennaSN != "216507" and pol == "V":
+            fileName = antdir + "/OFF-BS-PLSR/SN" + antennaSN + "/V-TRANS/waveform/06_30-el_0-az_0-" + pol + "-C-waveform.csv"
+    
     return fileName
 
 
@@ -139,15 +149,15 @@ def addToArray2(array, chan):
   Develop an average transfer function from the transfer functions of antennas measured in palestine 2016.
   Normalized to V/m (saved in V - ns fomat)
 """
-def makePalAntAverageTransferFunction(savePlots=False, showPlots=False, writeFiles=False):
+def makePalAntAverageTransferFunction(pol, savePlots=False, showPlots=False, writeFiles=False):
     
-    tempIn = np.genfromtxt("transferFunctions/palAntA4_02T.txt", delimiter=" ")
+    tempIn = np.genfromtxt("transferFunctions/palAntA4_02T" + pol + ".txt", delimiter=" ")
     inX = tempIn.T[0]
     inY = tempIn.T[1]
 
-    inY = addToArray(inY, "transferFunctions/palAntA4_07T.txt")
-    inY = addToArray(inY, "transferFunctions/palAntA4_12M.txt")
-    inY = addToArray(inY, "transferFunctions/palAntA4_13M.txt")
+    inY = addToArray(inY, "transferFunctions/palAntA4_07T" + pol + ".txt")
+    inY = addToArray(inY, "transferFunctions/palAntA4_12M" + pol + ".txt")
+    inY = addToArray(inY, "transferFunctions/palAntA4_13M" + pol + ".txt")
     inY /= 4
     
     inF,inFFT = tfu.genFFT(inX,inY)
@@ -177,24 +187,24 @@ def makePalAntAverageTransferFunction(savePlots=False, showPlots=False, writeFil
             fig0.savefig("plots/doPalAnt_averageTF.png")
 
     if writeFiles:
-        tff.writeOne([inX,inY],"","palAntA4Average")
+        tff.writeOne([inX,inY], pol, "palAntA4Average")
 
     return inX, inY
 
 """
   Create an average waveform function from the waveforms of antennas measured in palestine 2016.
 """
-def makePalAntAverageS21(writeFiles=False):
+def makePalAntAverageS21(pol, writeFiles=False):
     
-    inX,inY=importPalAntS21("02T")
+    inX,inY=importPalAntS21("02T" + pol)
 
-    inY = addToArray2(inY, "07T")
-    inY = addToArray2(inY, "12M")
-    inY = addToArray2(inY, "13M")
+    inY = addToArray2(inY, "07T" + pol)
+    inY = addToArray2(inY, "12M" + pol)
+    inY = addToArray2(inY, "13M" + pol)
     inY /= 4
     
     if writeFiles:
-        tff.writeOne([inX,inY],"","palAntA4AverageS21")
+        tff.writeOne([inX,inY],pol,"palAntA4AverageS21")
 
     return inX, inY
 
@@ -294,8 +304,10 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     ends up being in units of "meters"
     """
 
+    inF[0] = 1e-5 #to avoid division by zero errors
     antTFFFT = np.divide(outFFT,inFFT)*(0.3/(1j*inF))
     antTFFFT[0] = 0
+    inF[0] = 0
 
     antTFF = inF
 #    antTFX,antTFY,antTFF,antTFFFT = computeTF(inF,inFFT,outF,outFFT)
@@ -354,9 +366,8 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     antTFY = tfu.highPass(antTFX,antTFY)
     antTFY = tfu.nyquistLimit(antTFY,5)
 
-    #10BH is upside down?
-    #A bunch are actually!  Nothing here constrains absolute polarity
-    if np.max(antTFY) < -np.min(antTFY):
+    #Some are upside down.  this attempts to constrain polarity
+    if np.argmin(antTFY) < np.argmax(antTFY):
         print ("Flipped!")
         antTFY *= -1
     
@@ -365,6 +376,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     #Produce a plot for the gain normalized to dBi (hence the 4pi)
     if showPlots or savePlots:
         gainTF = ((4*np.pi*antTFF**2)/(0.3**2))*np.abs(antTFFFT)**2
+        gainTF[0] = 1e-15 #to avoid division by zero error
         figGain,axGain = lab.subplots()
         figGain.suptitle(chan)
         axGain.plot(antTFF,10*np.log10(gainTF)) #10 instead of 20 because... its a power gain already I htink
@@ -434,10 +446,10 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
         if savePlots:
             fig.savefig("plots/doPalAnt_TF"+chan+".png")
         
-        if writeFiles:
-            tff.writeOne([antTFX,antTFY],chan,"palAntA4")
+    if writeFiles:
+        tff.writeOne([antTFX,antTFY],chan,"palAntA4")
         
-        return antTFX,antTFY,antTFF,antTFFFT
+    return antTFX,antTFY,antTFF,antTFFFT
 
 def palAntCables(showPlots=False):
     """
@@ -506,15 +518,16 @@ def palAntCables(showPlots=False):
 This is for generating the antenna responses for antennas we didn't record phase info for.  It keeps the phase information from the average transfer function and scales the gain by the antenna gain we measured 
 """
 
-def doAntPalWithAveragePhase(chan, showPlots=False, savePlots=False, writeToFile=False):
+def doPalAntWithAveragePhase(chan, showPlots=False, savePlots=False, writeFiles=False):
+    pol = chan[3]
     # load up average transfer function
-    tempIn = np.genfromtxt("transferFunctions/palAntA4Average_.txt", delimiter=" ")
+    tempIn = np.genfromtxt("transferFunctions/palAntA4Average_" + pol + ".txt", delimiter=" ")
     tfX = tempIn.T[0]
     tfY = tempIn.T[1]
     tfF,tfFFT = tfu.genFFT(tfX,tfY)
     
     # load up average waveform
-    tempInWF = np.genfromtxt("transferFunctions/palAntA4AverageS21_.txt", delimiter=" ")
+    tempInWF = np.genfromtxt("transferFunctions/palAntA4AverageS21_" + pol + ".txt", delimiter=" ")
     aveF = tempInWF.T[0]
     aveFFTLog = tempInWF.T[1]
     aveFFT = 10.**(aveFFTLog/20.)
@@ -535,7 +548,7 @@ def doAntPalWithAveragePhase(chan, showPlots=False, savePlots=False, writeToFile
 
 
     tfX,tfY = tfu.genTimeSeries(tfF, tfFFT)
-    if writeToFile:
+    if writeFiles:
         tff.writeOne([tfX,tfY],chan,"palAntA4")
         
     return tfX,tfY,tfF,tfFFT
@@ -600,5 +613,42 @@ def doTUFFFreq(f, resFreq1 = 260e6, resFreq2 = 375e6, resFreq3 = 460e6, deg = Fa
     phaseTUFF = np.angle(GTUFF, deg)  #  Phase in radians by default.
     
     return TdBTUFF, phaseTUFF
+
+def doAllAntennas(savePlots = False, showPlots = False, writeFiles = False):
+
+    finishedChannels = []
+    chans = np.loadtxt("chanList.txt", dtype = bytes).astype(str)
+    channelsWithPhaseInfo = ["02TH","07TH","12MH","13MH","02TV","07TV","12MV","13MV"]
+    for chan in channelsWithPhaseInfo:
+        doPalAnt(chan, savePlots, showPlots, writeFiles)
+        finishedChannels.append(chan)
+
+    makePalAntAverageTransferFunction("H", savePlots, showPlots, writeFiles)
+    makePalAntAverageTransferFunction("V", savePlots, showPlots, writeFiles)
+    makePalAntAverageS21("H", writeFiles)
+    makePalAntAverageS21("V", writeFiles)
+    
+    for chan in chans:
+        if chan not in channelsWithPhaseInfo:
+            print(chan)
+            doPalAntWithAveragePhase(chan, showPlots, savePlots, writeFiles)
+            finishedChannels.append(chan)
+
+    return finishedChannels
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
