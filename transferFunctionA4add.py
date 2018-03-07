@@ -1,7 +1,7 @@
 """
 Script written by John Russell which includes functions specific to ANITA-4 over
 ANITA-3. Takes some functions from Ben Rotter's "transferFunctionFinal.py" and
-modifies them for ANTIA-4 usage.
+modifies them for ANITA-4 usage.
 """
 import os as os # import this to use environmental variables for portability (define $PALESTINE_DATA where all the CSBF16 stuff is)
 import numpy as np
@@ -58,7 +58,6 @@ def findPalestineAntennaFile(chan, inOrOut):
             fileName = antdir + "/OFF-BS-PLSR/SN" + antennaSN + "/V-TRANS/waveform/06_23-el_0-az_0-" + pol + "-C-waveform.csv"
         if antennaSN != "216507" and pol == "V":
             fileName = antdir + "/OFF-BS-PLSR/SN" + antennaSN + "/V-TRANS/waveform/06_30-el_0-az_0-" + pol + "-C-waveform.csv"
-    
     return fileName
 
 
@@ -243,6 +242,13 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     outX = outX[:1024]
     outY = outY[:1024]
 #    outY = tfu.highPass(outX,outY)
+    
+    #Some are upside down.  this attempts to constrain polarity
+    if np.argmin(outY) < np.argmax(outY):
+        print ("Flipped!")
+        outY *= -1
+        outY = np.roll(outY,50-np.argmax(outY))
+
     outF,outFFT = tfu.genFFT(outX,outY)
 
 #    outFFT = tfu.minimizeGroupDelayFromFFT(outF,outFFT)
@@ -365,11 +371,15 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     #butterworth filter @ 1.3
     antTFY = tfu.highPass(antTFX,antTFY)
     antTFY = tfu.nyquistLimit(antTFY,5)
-
-    #Some are upside down.  this attempts to constrain polarity
+   
+    #make sure xfer function is also all the same polarity
     if np.argmin(antTFY) < np.argmax(antTFY):
         print ("Flipped!")
         antTFY *= -1
+
+    antTFY = tfu.hanningTail(antTFY, np.argmax(antTFY)+200, 20)
+    antTFY = tfu.hanningTailNeg(antTFY, np.argmax(antTFY)-20, 20)
+
     
     antTFF,antTFFFT = tfu.genFFT(antTFX,antTFY)
 
