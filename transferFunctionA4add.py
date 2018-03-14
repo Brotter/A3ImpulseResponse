@@ -242,9 +242,9 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
     outX = outX[:1024]
     outY = outY[:1024]
 #    outY = tfu.highPass(outX,outY)
-    
+  
     #Some are upside down.  this attempts to constrain polarity
-    if np.argmin(outY) < np.argmax(outY):
+    if np.argmin(outY) > np.argmax(outY):
         print ("Flipped!")
         outY *= -1
         outY = np.roll(outY,50-np.argmax(outY))
@@ -253,7 +253,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
 #    outFFT = tfu.minimizeGroupDelayFromFFT(outF,outFFT)
 
-    #cables (i don't want to use cables, it makes the transfer functions ugly)
+    #cables (i cant find the cables files, not sure they exist at all)
 #    cablesF,cablesFFT = palAntCables(showPlots=showPlots)
 #    outFFT /= cablesFFT
 #    outX,outY = tfu.genTimeSeries(outF, outFFT)

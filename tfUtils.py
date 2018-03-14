@@ -342,7 +342,7 @@ def hanningWindow(inXArray,inYArray,center,totalWidth=1000,slope=200):
         center = lenGraph-totalWidth/2
         
     value = 0.0;
-    for pt in range(center-(width/2+slope),center+(width/2+slope)):
+    for pt in range(center-int(width/2+slope),center+int(width/2+slope)):
         if ( pt < (center-(width/2)-slope) ):
             outYArray.append(0)
             outXArray.append(inXArray[pt])
