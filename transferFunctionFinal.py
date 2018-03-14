@@ -1693,13 +1693,13 @@ def doAllSigChains(savePlots=False,showPlots=False):
     return allChans
 
 
-def doAllAntennas(savePlots=False,showPlots=False):
+def doAllAntennas(savePlots=False,showPlots=False,writeFiles=False):
     # just does all the palestine antennas
     chans = np.loadtxt("chanList.txt",dtype=str)
     allChans = {}
     for chan in chans:
         try:
-            allChans[chan] = doPalAnt(chan,showPlots=showPlots,savePlots=savePlots)[:2]
+            allChans[chan] = doPalAnt(chan,showPlots=showPlots,savePlots=savePlots,writeFiles=writeFiles)[:2]
         except:
             print chan+" FAILED************************************************"
 
