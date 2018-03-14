@@ -12,6 +12,7 @@ from glob import glob
 
 import tfUtils as tfu
 import transferFunctionFinal as tff
+import transferFunctionA4add as a4
 
 import cmath #for complex sqrt
 
@@ -260,7 +261,7 @@ P2SFFT = False
 P2AF = False
 P2AFFT = False
 
-def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
+def doSigChainWithCables(chan,showPlots=False,savePlots=False,writeFiles=False):
 #    if savePlots or showPlots:
 #        lab.close("all")
 
@@ -413,8 +414,8 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
         fig.set_tight_layout(True)
         ax[0][0].set_title("Raw Signal Chain Calibration Pulser")
         ax[0][0].plot(scopeRawX,scopeRawY,label="raw scope pulse",color="red")
-#        ax[0][0].plot(scopeX,scopeY,label="processed scope pulse",color="blue")
-        ax[0][0].plot(pulseDeconvX,pulseDeconvY,label="processed scope pulse",color="blue")
+        ax[0][0].plot(scopeX,scopeY,label="processed scope pulse",color="blue")
+#        ax[0][0].plot(pulseDeconvX,pulseDeconvY,label="processed scope pulse",color="blue")
         ax[0][0].set_ylabel("Voltage(V)")
         ax[0][0].set_xlabel("Time (ns)")
         ax[0][0].set_xlim([0,200])
@@ -451,12 +452,14 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
     print( " /|\ /|\ /|\ /|\ ",len(surfRawX),np.diff(surfRawX)[0])
     surfX,surfY = tff.processWaveform(surfRawX,surfRawY,"surf")
     print( " /|\ /|\ /|\ /|\ ",len(surfX),np.diff(surfX)[0])
-    surfY = tfu.lowPass(surfX, surfY, 1.2)
+#    surfY = tfu.lowPass(surfX, surfY, 1.3)
+#    surfY = tfu.hanningTail(surfY,np.argmax(surfY)+300,100)
 #    surfY = tfu.nyquistLimit(surfY, 3)
     surfY -= np.mean(surfY)
 
     surfY *= (1./1000) #lets go to V for a sec #TODO: this is now ADC counts/1000.
     surfF,surfFFT = tfu.genFFT(surfX,surfY)
+#    surfFFT *= 10**(3.53/20.) #I think there's a missing splitter
 
 
 
@@ -505,11 +508,14 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
 
     
     #change it back to time domain
+#    for i in range(0,len(surfF)):
+#        if surfF[i] > 1.25:
+#            tfFFT[i] /= 1e9
     tfX,tfY = tfu.genTimeSeries(surfF,tfFFT)
 
     #clean up the tail and make it start at the beginning
-    tfY = np.roll(tfY,50-np.argmax(tfY))
-#    tfY = tfu.hanningTail(tfY,320,100)
+    tfY = np.roll(tfY,30-np.argmax(tfY))
+    tfY = tfu.hanningTail(tfY,320,100)
     tfY = tfu.nyquistLimit(tfY,5.)
     tfY -= np.mean(tfY)
 
@@ -519,7 +525,7 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
     #CLUDGE for normalization.  The RMS and y-factor analyses both suggest that this process is a factor of two low
 #    tfY *= 2
     #^^^^^^^^^^^ 
-
+    
     tfF,tfFFT = tfu.genFFT(tfX,tfY)
     surfY -= np.mean(surfY)
     
@@ -576,7 +582,6 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
         if savePlots:
             fig3.savefig("plots/doSigChainWithCables_TF"+chan+".png")
 
-    #zero out everything above 1.3GHz because that's our nyquist limit
 #    for i in range(0,len(surfF)):
 #        if surfF[i] > 1.3:
 #            tfFFT[i] /= 1e9
@@ -592,25 +597,29 @@ def doSigChainWithCables(chan,savePlots=False,showPlots=False,writeFiles=False):
 def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
     #get antenna
 #    antX,antY,antF,antFFT = doRoofAntWithCables()
-    antX,antY,antF,antFFT = doPalAnt(chan,showPlots=showPlots,savePlots=savePlots,writeFiles=writeFiles)
+    channelsWithPhaseInfo = ["02TH", "07TH", "12MH", "13MH", "02TV", "07TV", "12MV", "13MV"]
+    if chan in channelsWithPhaseInfo:
+        antX,antY,antF,antFFT = a4.doPalAnt(chan,showPlots=showPlots,savePlots=savePlots,writeFiles=writeFiles)
+    else:
+        antX,antY,antF,antFFT = a4.doPalAntWithAveragePhase(chan,showPlots=showPlots,savePlots=savePlots,writeFiles=writeFiles)
     
     #get sig chain
     print("doSigChainAndAntenna:getSigChain")
     sigChainX,sigChainY,sigChainF,sigChainFFT = doSigChainWithCables(chan,showPlots=showPlots,savePlots=savePlots,writeFiles=writeFiles)
 
     #convolve the two (full ANITA3 transfer function!)
-    a3F = sigChainF
-    a3FFT = sigChainFFT * antFFT
+    a4F = sigChainF
+    a4FFT = sigChainFFT * antFFT
 
     #also there is a scaling from free space (377ohms) to system impedance (50ohms) [ sqrt(50/377) ]
-    a3FFT *= np.sqrt(50./377)
+    a4FFT *= np.sqrt(50./377)
 
 
-    a3X,a3Y = tfu.genTimeSeries(a3F,a3FFT)
+    a4X,a4Y = tfu.genTimeSeries(a4F,a4FFT)
     
     if (showPlots or savePlots):
 #        lab.close("all")
-        fig,ax = lab.subplots(2,3,figsize=(11,8.5))
+        fig,ax = lab.subplots(2,4,figsize=(11,8.5))
         ax[0][0].set_title(chan)
         ax[0][0].plot(antX,np.roll(antY,100),label="Antenna")
         ax[0][0].legend()
@@ -629,20 +638,34 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
         ax[1][1].set_ylabel("Gain (dB)")
         ax[1][1].set_xlim([0,3])
 
-        a3YPeak = np.argmax(a3Y)
-        ax[0][2].plot(a3X,np.roll(a3Y,100-a3YPeak),label="Convolution",color="black")
+        a4YPeak = np.argmax(a4Y)
+        ax[0][2].plot(a4X,np.roll(a4Y,100-a4YPeak),label="Convolution",color="black")
         ax[0][2].legend()
         ax[0][2].set_xlabel("Time (ns)")
         ax[0][2].set_ylabel("Instrument Response \n (V/m)")
         
-        ax[1][2].plot(a3F,tfu.calcLogMag(a3F,a3FFT),color="black")
+        ax[1][2].plot(a4F,tfu.calcLogMag(a4F,a4FFT),color="black")
         ax[1][2].set_ylim([0,70])
         ax[1][2].set_xlim([0.1,1.5])
         ax[1][2].set_xlabel("Frequency (GHz)")
         ax[1][2].set_ylabel("Instrument Height (V/m)")
         ax[1][2].set_xlim([0,3])
+        
+        brX,brY,brF,brFFT = a4.importAverageBRotter() 
+        
+        ax[0][3].plot(brX,np.roll(brY,100-np.argmax(brY)),label="BRotter average",color="black")
+        ax[0][3].legend()
+        ax[0][3].set_xlabel("Time (ns)")
+        ax[0][3].set_ylabel("Instrument Response \n (V/m)")
+        
+        ax[1][3].plot(brF,tfu.calcLogMag(brF,brFFT),color="black")
+        ax[1][3].set_ylim([0,70])
+        ax[1][3].set_xlim([0.1,1.5])
+        ax[1][3].set_xlabel("Frequency (GHz)")
+        ax[1][3].set_ylabel("Instrument Height (V/m)")
+        ax[1][3].set_xlim([0,3])
 
-#        ax[4].plot(a3F,tfu.calcPhase(tfu.minimizeGroupDelayFromFFT(a3F,a3FFT,highLim=256)),color="black")
+#        ax[4].plot(a4F,tfu.calcPhase(tfu.minimizeGroupDelayFromFFT(a4F,a4FFT,highLim=256)),color="black")
 #        ax[4].set_xlim([0,2])
 #        ax[4].set_xlabel("Frequency (GHz)")
 #        ax[4].set_ylabel("Group Delay (ns)")
@@ -655,22 +678,22 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
 
     #clean it up a bit
     #something was adding a ton of 1.25GHz noise
-#    for i in range(0,len(a3FFT)):
-#        if a3F[i] > 1.1:
-#            a3FFT[i] /= 1e4
+#    for i in range(0,len(a4FFT)):
+#        if a4F[i] > 1.1:
+#            a4FFT[i] /= 1e4
 
-#    a3FFT = np.concatenate((a3FFT[:171],np.zeros(342))) #this isn't causal...
+#    a4FFT = np.concatenate((a4FFT[:171],np.zeros(342))) #this isn't causal...
 
     #make it look nice and cut off the junk at the end
-    a3Y = np.roll(a3Y,40-np.argmax(a3Y))
-    a3Y = tfu.hanningTail(a3Y,300,200)
-#    a3X,a3Y = tfu.zeroPadEqual(a3X,a3Y,1024)
+    a4Y = np.roll(a4Y,40-np.argmax(a4Y))
+    a4Y = tfu.hanningTail(a4Y,300,200)
+#    a4X,a4Y = tfu.zeroPadEqual(a4X,a4Y,1024)
 
     if writeFiles:
-        tff.writeOne([a3X,a3Y],chan,"fullTF")
+        tff.writeOne([a4X,a4Y],chan,"fullTF")
         
     
-    return a3X,a3Y
+    return a4X,a4Y
 
 
 
@@ -742,7 +765,7 @@ def alignWaveforms(allChans,showPlots=False):
     
 
 
-def doAllInstrumentHeight(savePlots=False,showPlots=False,writeFiles=False):
+def doAllInstrumentHeight(showPlots=False,savePlots=False,writeFiles=False):
     #renamed from doTheWholeShebang because that isn't very descriptive
     # Generate the transfer function for all the channels!
     chans = np.loadtxt("chanList.txt",dtype=str)
@@ -761,7 +784,7 @@ def doAllInstrumentHeight(savePlots=False,showPlots=False,writeFiles=False):
     return allChansAligned
 
 
-def doAllSigChains(savePlots=False,showPlots=False):
+def doAllSigChains(showPlots=False,savePlots=False):
     # just does all the signal chains without the antennas
     chans = np.loadtxt("chanList.txt",dtype=str)
     allChans = {}

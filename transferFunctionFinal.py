@@ -551,7 +551,7 @@ def processWaveform(graphT,graphV,source):
         graphMaxV = np.argmax(graphV)
 #        graphT,graphV = tf.hanningWindow(graphT, graphV, graphMaxV + 240, 512, slope = 1)
 #        graphT,graphV = tf.hanningWindow(graphT, graphV, graphMaxV + 252, 512, slope = 1)
-#        graphV = tf.hanningTail(graphV, np.argmax(graphV)+40, 20)
+        graphV = tf.hanningTail(graphV, np.argmax(graphV)+40, 20)
         print("Slice: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT)))
 
     #zero pad back to 1024 because I'm making my hanning window smaller (~50ns wide)

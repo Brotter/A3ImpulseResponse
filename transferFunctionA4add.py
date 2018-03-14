@@ -124,6 +124,19 @@ def importPalAntS21(chan):
 
     return np.array(freq), np.array(mag)
 
+def importAverageBRotter():
+    """
+    Ben Rotter's average antenna
+    """
+
+    fname = '{0}/share/AnitaAnalysisFramework/responses/SingleBRotter/all.imp'.format(os.environ['ANITA_UTIL_INSTALL_DIR'])
+
+    t,v = np.loadtxt(fname).T
+    x = np.array(t)
+    y = np.array(v)
+    f,fft = tfu.genFFT(x,y)
+    return x,y,f,fft 
+
 #==============================================================================
 # Processing.
 #==============================================================================
@@ -148,7 +161,7 @@ def addToArray2(array, chan):
   Develop an average transfer function from the transfer functions of antennas measured in palestine 2016.
   Normalized to V/m (saved in V - ns fomat)
 """
-def makePalAntAverageTransferFunction(pol, savePlots=False, showPlots=False, writeFiles=False):
+def makePalAntAverageTransferFunction(pol, showPlots=False, savePlots=False, writeFiles=False):
     
     tempIn = np.genfromtxt("transferFunctions/palAntA4_02T" + pol + ".txt", delimiter=" ")
     inX = tempIn.T[0]
@@ -158,6 +171,7 @@ def makePalAntAverageTransferFunction(pol, savePlots=False, showPlots=False, wri
     inY = addToArray(inY, "transferFunctions/palAntA4_12M" + pol + ".txt")
     inY = addToArray(inY, "transferFunctions/palAntA4_13M" + pol + ".txt")
     inY /= 4
+    inY -= np.mean(inY)
     
     inF,inFFT = tfu.genFFT(inX,inY)
     
@@ -212,7 +226,7 @@ def makePalAntAverageS21(pol, writeFiles=False):
   Develop a transfer function for an antenna measured in palestine 2016, mapped to channel.
   Normalized to V/m (saved in V - ns fomat)
 """
-def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
+def doPalAnt(chan,showPlots=False,savePlots=False,writeFiles=False):
 
     if showPlots or savePlots:
         lab.close("all")
@@ -244,7 +258,7 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 #    outY = tfu.highPass(outX,outY)
   
     #Some are upside down.  this attempts to constrain polarity
-    if np.argmin(outY) > np.argmax(outY):
+    if np.argmin(outY) < np.argmax(outY):
         print ("Flipped!")
         outY *= -1
         outY = np.roll(outY,50-np.argmax(outY))
@@ -369,17 +383,17 @@ def doPalAnt(chan,savePlots=False,showPlots=False,writeFiles=False):
 
     #remove all the stupid power above 1.3GHz since ANITA can't measure it (probably should be lower)
     #butterworth filter @ 1.3
-    antTFY = tfu.highPass(antTFX,antTFY)
+#    antTFY = tfu.highPass(antTFX,antTFY)
     antTFY = tfu.nyquistLimit(antTFY,5)
    
     #make sure xfer function is also all the same polarity
-    if np.argmin(antTFY) < np.argmax(antTFY):
+    if np.max(antTFY) < abs(np.min(antTFY)):
         print ("Flipped!")
         antTFY *= -1
 
-    antTFY = tfu.hanningTail(antTFY, np.argmax(antTFY)+200, 20)
+    antTFY = tfu.hanningTail(antTFY, np.argmax(antTFY)+40, 100)
     antTFY = tfu.hanningTailNeg(antTFY, np.argmax(antTFY)-20, 20)
-
+    antTFY -= np.mean(antTFY)
     
     antTFF,antTFFFT = tfu.genFFT(antTFX,antTFY)
 
@@ -546,18 +560,21 @@ def doPalAntWithAveragePhase(chan, showPlots=False, savePlots=False, writeFiles=
     antF,antFFTLog=importPalAntS21(chan)
     antFFT = 10.**(antFFTLog/20.)
     antFFT /= aveFFT
-    fnew = interpolate.interp1d(antF, antFFT)
+    fnew = interpolate.interp1d(antF, antFFT, "cubic")
     
     for i in range(len(tfF)):
-        if tfF[i] >=.18 and tfF[i] <= 1.3:
-            m = np.absolute(tfFFT[i]) * fnew(antFFT[i])
-            p = np.angle(tfFFT[i])
-            tfFFT[i] = m*np.cos(p) + m*np.sin(p)*1j
-        if tfF[i] > 1.3:
-            break
-
+        try:
+            m = np.absolute(tfFFT[i]) * fnew(tfF[i])
+        except ValueError:
+            m = np.absolute(tfFFT[i])
+        p = np.angle(tfFFT[i])
+        tfFFT[i] = m*np.cos(p) + m*np.sin(p)*1j
 
     tfX,tfY = tfu.genTimeSeries(tfF, tfFFT)
+    tfY = tfu.hanningTail(tfY, np.argmax(tfY)+400, 100)
+    tfY = tfu.hanningTailNeg(tfY, np.argmax(tfY)-20, 20)
+    tfY -= np.mean(tfY)
+
     if writeFiles:
         tff.writeOne([tfX,tfY],chan,"palAntA4")
         
@@ -624,17 +641,17 @@ def doTUFFFreq(f, resFreq1 = 260e6, resFreq2 = 375e6, resFreq3 = 460e6, deg = Fa
     
     return TdBTUFF, phaseTUFF
 
-def doAllAntennas(savePlots = False, showPlots = False, writeFiles = False):
+def doAllAntennas(showPlots = False, savePlots = False, writeFiles = False):
 
     finishedChannels = []
     chans = np.loadtxt("chanList.txt", dtype = bytes).astype(str)
     channelsWithPhaseInfo = ["02TH","07TH","12MH","13MH","02TV","07TV","12MV","13MV"]
     for chan in channelsWithPhaseInfo:
-        doPalAnt(chan, savePlots, showPlots, writeFiles)
+        doPalAnt(chan, showPlots, savePlots, writeFiles)
         finishedChannels.append(chan)
 
-    makePalAntAverageTransferFunction("H", savePlots, showPlots, writeFiles)
-    makePalAntAverageTransferFunction("V", savePlots, showPlots, writeFiles)
+    makePalAntAverageTransferFunction("H", showPlots, savePlots, writeFiles)
+    makePalAntAverageTransferFunction("V", showPlots, savePlots, writeFiles)
     makePalAntAverageS21("H", writeFiles)
     makePalAntAverageS21("V", writeFiles)
     
