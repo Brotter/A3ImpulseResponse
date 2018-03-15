@@ -124,13 +124,24 @@ def importPalAntS21(chan):
 
     return np.array(freq), np.array(mag)
 
-def importAverageBRotter():
+def importAverageAnt():
     """
     Ben Rotter's average antenna
     """
 
-    fname = '{0}/share/AnitaAnalysisFramework/responses/SingleBRotter/all.imp'.format(os.environ['ANITA_UTIL_INSTALL_DIR'])
+    fname = "oldTransferFunctions/avgAnt.txt"
+    t,v = np.loadtxt(fname).T
+    x = np.array(t)
+    y = np.array(v)
+    f,fft = tfu.genFFT(x,y)
+    return x,y,f,fft 
 
+def importAverageA3():
+    """
+    Ben Rotter's average antenna
+    """
+
+    fname = "{0}/share/AnitaAnalysisFramework/responses/SingleBRotter/all.imp".format(os.environ['ANITA_UTIL_INSTALL_DIR'])
     t,v = np.loadtxt(fname).T
     x = np.array(t)
     y = np.array(v)

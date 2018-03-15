@@ -150,7 +150,7 @@ def getCables(fileName):
     return cableFreq,cableFFT
 
 def getCablesForChannel(chan):
-    cableStart = 0
+    cableStart = 1
     if chan[3] == "H":
         cableStart = 8
     cableIndex = int(chan[:2])%8 + cableStart
@@ -459,7 +459,7 @@ def doSigChainWithCables(chan,showPlots=False,savePlots=False,writeFiles=False):
 
     surfY *= (1./1000) #lets go to V for a sec #TODO: this is now ADC counts/1000.
     surfF,surfFFT = tfu.genFFT(surfX,surfY)
-#    surfFFT *= 10**(3.53/20.) #I think there's a missing splitter
+    surfFFT *= 10**(3.53/20.) #I think there's a missing splitter
 
 
 
@@ -594,11 +594,13 @@ def doSigChainWithCables(chan,showPlots=False,savePlots=False,writeFiles=False):
 
 
 
-def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
+def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False,useAverageAntenna=False):
     #get antenna
 #    antX,antY,antF,antFFT = doRoofAntWithCables()
     channelsWithPhaseInfo = ["02TH", "07TH", "12MH", "13MH", "02TV", "07TV", "12MV", "13MV"]
-    if chan in channelsWithPhaseInfo:
+    if(useAverageAntenna):
+        antX,antY,antF,antFFT = a4.importAverageAnt()
+    elif chan in channelsWithPhaseInfo:
         antX,antY,antF,antFFT = a4.doPalAnt(chan,showPlots=showPlots,savePlots=savePlots,writeFiles=writeFiles)
     else:
         antX,antY,antF,antFFT = a4.doPalAntWithAveragePhase(chan,showPlots=showPlots,savePlots=savePlots,writeFiles=writeFiles)
@@ -651,7 +653,7 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False):
         ax[1][2].set_ylabel("Instrument Height (V/m)")
         ax[1][2].set_xlim([0,3])
         
-        brX,brY,brF,brFFT = a4.importAverageBRotter() 
+        brX,brY,brF,brFFT = a4.importAverageA3() 
         
         ax[0][3].plot(brX,np.roll(brY,100-np.argmax(brY)),label="BRotter average",color="black")
         ax[0][3].legend()
@@ -765,7 +767,7 @@ def alignWaveforms(allChans,showPlots=False):
     
 
 
-def doAllInstrumentHeight(showPlots=False,savePlots=False,writeFiles=False):
+def doAllInstrumentHeight(showPlots=False,savePlots=False,writeFiles=False,useAverageAntenna=False):
     #renamed from doTheWholeShebang because that isn't very descriptive
     # Generate the transfer function for all the channels!
     chans = np.loadtxt("chanList.txt",dtype=str)
@@ -773,7 +775,7 @@ def doAllInstrumentHeight(showPlots=False,savePlots=False,writeFiles=False):
 #    lab.close("all")
     for chan in chans:
         try:
-            allChans[chan] = doSigChainAndAntenna(chan,savePlots=savePlots,showPlots=showPlots,writeFiles=writeFiles)
+            allChans[chan] = doSigChainAndAntenna(chan,savePlots=savePlots,showPlots=showPlots,writeFiles=writeFiles,useAverageAntenna=useAverageAntenna)
         except:
             print(chan+" FAILED")
 
@@ -784,18 +786,29 @@ def doAllInstrumentHeight(showPlots=False,savePlots=False,writeFiles=False):
     return allChansAligned
 
 
-def doAllSigChains(showPlots=False,savePlots=False):
+def doAllSigChains(showPlots=False,savePlots=False,writeFiles=False,useAverageAntenna=False):
     # just does all the signal chains without the antennas
-    chans = np.loadtxt("chanList.txt",dtype=str)
+    chans = np.loadtxt("chanList.txt",dtype=bytes).astype(str)
     allChans = {}
     for chan in chans:
         try:
-            allChans[chan] = doSigChainWithCables(chan,savePlots=savePlots,showPlots=showPlots)[:2]
+            allChans[chan] = doSigChainWithCables(chan,savePlots=savePlots,showPlots=showPlots,writeFiles=writeFiles,useAverageAntenna=useAverageAntenna)[:2]
         except:
             print(chan+" FAILED************************************************")
 
     return allChans
 
+def doAllSigChainAndAntennas(showPlots=False,savePlots=False,writeFiles=False,useAverageAntenna=False):
+    # just does all the signal chains without the antennas
+    chans = np.loadtxt("chanList.txt",dtype=bytes).astype(str)
+    allChans = {}
+    for chan in chans:
+        try:
+            allChans[chan] = doSigChainAndAntenna(chan,savePlots=savePlots,showPlots=showPlots,writeFiles=writeFiles,useAverageAntenna=useAverageAntenna)[:2]
+        except:
+            print(chan+" FAILED************************************************")
+
+    return allChans
 
 
 def rollAllDict(allChans,roll):
