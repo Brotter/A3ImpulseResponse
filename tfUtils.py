@@ -1507,7 +1507,8 @@ def minimizeGroupDelayFromFFT(f,fft,lowLim=0,highLim=-1):
     return fftNew
     
 
-def minimizeGroupDelayFromPhase(f,phase,lowLim=30,highLim=114):
+#def minimizeGroupDelayFromPhase(f,phase,lowLim=30,highLim=114): #old limits
+def minimizeGroupDelayFromPhase(f,phase,lowLim=21,highLim=822):
 
     #limits are to try and just fit for our band
     phaseFit = mf.fitLin(f[lowLim:highLim],phase[lowLim:highLim],[0,0,0])

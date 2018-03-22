@@ -129,7 +129,7 @@ def importAverageAnt():
     Ben Rotter's average antenna
     """
 
-    fname = "oldTransferFunctions/avgAnt.txt"
+    fname = "transferFunctions/avgAnt.txt"
     t,v = np.loadtxt(fname).T
     x = np.array(t)
     y = np.array(v)

@@ -85,21 +85,63 @@ def importSurf(chan):
         
     return graphT, graphV, dataF, dataFFT
     
+def rollAndAdd(total, ev):
+    ev = np.roll(ev, np.argmax(total) - np.argmax(ev))
+    total += ev
+    return total
+
 
 def importScope():
     #Calibration Scope
-    fileName = "scope_data/fastImpulseAvg017.csv"
+    if os.path.isfile("transferFunctions/avgScope.txt"):
+        avgX,avgY = np.loadtxt("transferFunctions/avgScope.txt", delimiter = " ").T
+        dataF,dataFFT = tfu.genFFT(avgX,avgY)
+        return avgX, avgY, dataF, dataFFT
+        
+    fileName = "scope_data/fastImpulse2000Evt016.csv"
     dataX, dataY = np.loadtxt(fileName, delimiter=",", usecols=(3,4)).T
 
     dataX *= 1e9 #s ->ns
+    
+    firstFlag = 1
+    n = 0;
+    evtime = []
+    event = []
+    eventTotal = []
 
-    #make the time range start at zero
-    dataX -= dataX[0]
+    t0 = -9999999
+    for i in range(len(dataX)):
+        t = dataX[i]
+        if t < t0: 
+            if firstFlag == 1:
+                eventTotal = np.array(event.copy())
+            if firstFlag == 0:
+                rollAndAdd(eventTotal,np.array(event))
+            evtime.clear()
+            event.clear()
+            firstFlag = 0
+            n+=1
+        event.append(dataY[i])
+        evtime.append(dataX[i])
+        t0 = t
+    
+    rollAndAdd(eventTotal,np.array(event))
+    n+=1
+
+    avgY = eventTotal
+    avgX = np.array(evtime)
+    avgY /= n
+    avgY -= np.mean(avgY)
 
     #also I always want to have the fourier spaces of these things
-    dataF,dataFFT = tfu.genFFT(dataX,dataY)
+    dataF,dataFFT = tfu.genFFT(avgX,avgY)
+
+    fOut = open("transferFunctions/avgScope.txt", "w")
+    for i in range(0, len(avgX)):
+        fOut.write(str(avgX[i])+ " " + str(avgY[i]) + "\n")
+    fOut.close()
         
-    return dataX, dataY, dataF, dataFFT
+    return avgX, avgY, dataF, dataFFT
 
 
 def getRegeneratedCables(fileName,dF=5./512.,length=513):
@@ -161,6 +203,7 @@ def getCablesForChannel(chan):
 
     cableFreq,cableGainLog,cableGD =  s2pParser(fname)
     cableGainLin = 10.**(cableGainLog/20.)
+    cableGD *= 1e9
     return cableFreq,cableGainLin,cableGD
 
 def getExtraCable(refOrTest):
@@ -204,8 +247,10 @@ def getExtraCable(refOrTest):
                 gd.append(float(split[1].strip()))
     npmag = np.array(mag)
     cableGainLin = 10.**(npmag/20.)
+    cableGD = np.array(gd)
+    cableGD *= 1e9
 
-    return np.array(freq),cableGainLin,np.array(gd)
+    return np.array(freq),cableGainLin,cableGD
 
 def regenerateCablesFromGroupDelay(cableF, cableG, cableGD):
     cableP = phaseFromGroupDelay(cableF, cableGD)
@@ -236,7 +281,7 @@ def s2pParser(fileName):
                 freq.append(float(split[0])/1e9)
                 mag.append(float(split[1].strip()))
             if(line[0] != '!' and line[0] != 'B' and line[0] != 'E' and record == 3):
-                gd.append(float(split[1].strip())*1e9)
+                gd.append(float(split[1].strip()))
 
     return np.array(freq), np.array(mag), np.array(gd)
 
@@ -273,6 +318,7 @@ def doSigChainWithCables(chan,showPlots=False,savePlots=False,writeFiles=False):
     #NOTE: removed the kSlice stuff for now
     scopeRawX,scopeRawY,scopeRawF,scopeRawFFT = importScope()
     scopeX,scopeY = tff.processWaveform(scopeRawX,scopeRawY,"calScope")
+#    scopeY = tfu.hanningTailNeg(scopeY, np.argmax(scopeY)-4,1)
     scopeF,scopeFFT = tfu.genFFT(scopeX,scopeY)
             
     #1.26 is the max coherance phase?
@@ -316,7 +362,8 @@ def doSigChainWithCables(chan,showPlots=False,savePlots=False,writeFiles=False):
     #PULSER TO SCOPE
     #deconvolve cable pulse * cable = scope -> pulse = scope/cable
     #finds just the pulser impulse
-    pulseDeconvFFT = scopeFFT/cableScopeFFT
+#    pulseDeconvFFT = scopeFFT/cableScopeFFT
+    pulseDeconvFFT = scopeFFT
     pulseDeconvFFT[np.isposinf(np.real(pulseDeconvFFT))] = 0
     pulseDeconvFFT[np.isneginf(np.real(pulseDeconvFFT))] = 0
     pulseDeconvFFT = np.nan_to_num(pulseDeconvFFT)
@@ -427,7 +474,7 @@ def doSigChainWithCables(chan,showPlots=False,savePlots=False,writeFiles=False):
         ax[0][1].legend()
 
         ax[1][0].plot(scopeRawF,tfu.calcSpecMag(scopeRawF,scopeRawFFT),label="raw scope pulse",color="red")
-        ax[1][0].plot(scopeF,tfu.calcSpecMag(scopeF,scopeFFT),label="processed scope pulse",color="blue")
+#        ax[1][0].plot(scopeF,tfu.calcSpecMag(scopeF,scopeFFT),label="processed scope pulse",color="blue")
         ax[1][0].set_xlabel("Frequency (GHz)")
         ax[1][0].set_ylabel("Spectral Power (dBm/Hz)")
         ax[1][0].set_ylim([-100,0])
@@ -515,7 +562,7 @@ def doSigChainWithCables(chan,showPlots=False,savePlots=False,writeFiles=False):
 
     #clean up the tail and make it start at the beginning
     tfY = np.roll(tfY,30-np.argmax(tfY))
-    tfY = tfu.hanningTail(tfY,320,100)
+#    tfY = tfu.hanningTail(tfY,320,100)
     tfY = tfu.nyquistLimit(tfY,5.)
     tfY -= np.mean(tfY)
 
@@ -618,6 +665,10 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False,u
 
 
     a4X,a4Y = tfu.genTimeSeries(a4F,a4FFT)
+    a4Y = np.roll(a4Y,40-np.argmax(a4Y))
+    a4Y = tfu.hanningTail(a4Y,300,200)
+    a4Y -= np.mean(a4Y)
+    a4F, a4FFT = tfu.genFFT(a4X, a4Y)
     
     if (showPlots or savePlots):
 #        lab.close("all")
@@ -687,8 +738,6 @@ def doSigChainAndAntenna(chan,showPlots=False,savePlots=False,writeFiles=False,u
 #    a4FFT = np.concatenate((a4FFT[:171],np.zeros(342))) #this isn't causal...
 
     #make it look nice and cut off the junk at the end
-    a4Y = np.roll(a4Y,40-np.argmax(a4Y))
-    a4Y = tfu.hanningTail(a4Y,300,200)
 #    a4X,a4Y = tfu.zeroPadEqual(a4X,a4Y,1024)
 
     if writeFiles:
