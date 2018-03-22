@@ -207,10 +207,11 @@ void histos(int run, TString names[], AnitaRing::AnitaRing_t whichRing, int chan
       int chanIndex = agt->getChanIndexFromRingPhiPol(rings[phi], chanNum[phi], pols[phi]);
       if(uae->getLabChip(chanIndex) != 0) continue;
       gChan=uae->getGraph(rings[phi], chanNum[phi], pols[phi]);
-      AnalysisWaveform wf(gChan->GetN(), gChan->GetX(), gChan->GetY(), .1);
+      AnalysisWaveform wf(gChan->GetN(), gChan->GetX(), gChan->GetY(), 1./2.6);
+      int padNumber = 1024 - wf.Neven();
+      if(padNumber > 0) wf.padFreqAdd(padNumber);
       const TGraphAligned* temp = wf.even();
-      TGraph* interpGraph = new TGraph(temp->GetN(), temp->GetX(), temp->GetY());
-      TGraph* gAligned = makeLength(interpGraph, 1024);
+      TGraph* gAligned = new TGraph(temp->GetN(), temp->GetX(), temp->GetY());
 
       if(phi==0) gWaves0[entryUsed[0]]=new TGraph(gAligned->GetN(), gAligned->GetX(), gAligned->GetY());
       if(phi==1) gWaves1[entryUsed[1]]=new TGraph(gAligned->GetN(), gAligned->GetX(), gAligned->GetY());
@@ -229,7 +230,6 @@ void histos(int run, TString names[], AnitaRing::AnitaRing_t whichRing, int chan
       if(phi==14) gWaves14[entryUsed[14]]=new TGraph(gAligned->GetN(),gAligned->GetX(),gAligned->GetY());
       if(phi==15) gWaves15[entryUsed[15]]=new TGraph(gAligned->GetN(),gAligned->GetX(),gAligned->GetY());
       entryUsed[phi]++;
-      delete interpGraph;
       delete gAligned;
     }
   }
@@ -285,39 +285,47 @@ void histos(int run, TString names[], AnitaRing::AnitaRing_t whichRing, int chan
 	printf("%ld\n", time(0) - t0);
 }
 
-void doAll()
+void do1858()
 {
-/*	
-*/	
 	TString names1858[16] = { "MV1", "MV2", "MV3", "MV4",
                             "MV5", "MV6", "MV7", "MV8",
                             "MH1", "MH2", "MH3", "MH4",
                             "MH5", "MH6", "MH7", "MH8"};
 
 	histos(1858, names1858, AnitaRing::kMiddleRing, 0); 
+}
+void do1879()
+{
 	
-/*	
 	TString names1879[16] = { "MV9", "MV10", "MV11", "MV12",
                             "MV13", "MV14", "MV15", "MV16",
                             "MH9", "MH10", "MH11", "MH12",
                             "MH13", "MH14", "MH15", "MH16"};
 
 	histos(1879, names1879, AnitaRing::kMiddleRing, 8); 
-
+}	
+void do1884()
+{
+	
 	TString names1884[16] = { "BV9", "BV10", "BV11", "BV12",
                             "BV13", "BV14", "BV15", "BV16",
                             "BH9", "BH10", "BH11", "BH12",
                             "BH13", "BH14", "BH15", "BH16"};
 
 	histos(1884, names1884, AnitaRing::kBottomRing, 8); 
-
+}
+void do1891()
+{
+	
 	TString names1891[16] = { "BV1", "BV2", "BV3", "BV4",
                             "BV5", "BV6", "BV7", "BV8",
                             "BH1", "BH2", "BH3", "BH4",
                             "BH5", "BH6", "BH7", "BH8"};
 
 	histos(1891, names1891, AnitaRing::kBottomRing, 0);
-
+}
+void do1909()
+{
 	
 	TString names1909[16] = { "TV9", "TV10", "TV11", "TV12",
                             "TV13", "TV14", "TV15", "TV16",
@@ -325,6 +333,9 @@ void doAll()
                             "TH13", "TH14", "TH15", "TH16"};
 
 	histos(1909, names1909, AnitaRing::kTopRing, 8); 
+}
+void do1900()
+{
 
 	TString names1900[16] = { "TV1", "TV2", "TV3", "TV4",
                             "TV5", "TV6", "TV7", "TV8",
@@ -332,5 +343,4 @@ void doAll()
                             "TH5", "TH6", "TH7", "TH8"};
 
 	histos(1900, names1900, AnitaRing::kTopRing, 0);
-*/	
 }
