@@ -1011,6 +1011,9 @@ def correlateAndAverage(events,makePlots=False):
     firstFlag = True
     eventsCopy = copy.deepcopy(events)
 
+    if makePlots:
+        fig,ax = lab.subplots(2,sharex=True)
+
     for currEvent in eventsCopy:
         if firstFlag == True:
             #print "lets DO THIS THING"
@@ -1020,32 +1023,33 @@ def correlateAndAverage(events,makePlots=False):
             firstFlag = False
         else:
             max,rSq,peak = findPeakCorr(currEvent[1],avgEvent[1])
-            shiftedEvent = shiftWaveform(currEvent[1],peak)
+            #shiftedEvent = shiftWaveform(currEvent[1],peak)
+            shiftedEvent = np.roll(currEvent[1],peak)
             resampledEvent = resampleAtOffset(shiftedEvent,max)
             avgEvent[1] += resampledEvent/numEvents
             
             #test plotting
             if makePlots==True:
-                if len(lab.get_fignums())==0:
-                    fig = lab.figure()
-                    axA = fig.add_subplot(211)
-                    axB = fig.add_subplot(212,sharex=axA)
-                    fig.show()
-                else:
-                    fig = lab.figure(lab.get_fignums()[0])
-                    axA = fig.get_axes()[0]
-                    axB = fig.get_axes()[1]
-                    axB.cla()
-                    axA.cla()
-
-                axA.plot(currEvent[1],label="curr")
-                axA.plot(resampledEvent,label="resamp")
-                axA.legend()
-                axB.plot(avgEvent[1],label="avg")
-                axB.legend()
-                fig.canvas.draw()
+                ax[0].plot(shiftedEvent,alpha=0.05,color="black")
+                ax[1].plot(resampledEvent,alpha=0.05,color="black")
 
         currEvent = [[],[]]
+
+    if makePlots:
+        ax[0].set_title("simple quantized shift")
+        ax[1].set_title("spline resampled shift")
+        
+        ax[0].lines[0].set_label("single waveforms")
+        ax[1].lines[0].set_label("single waveforms")
+        ax[0].plot(avgEvent[1],color="red",label="averaged waveform")
+        ax[1].plot(avgEvent[1],color="red",label="averaged waveform")
+        ax[0].legend()
+        ax[0].grid()
+        ax[1].legend()
+        ax[1].grid()
+        fig.canvas.draw()
+
+
     
     return avgEvent[0],avgEvent[1]
 
