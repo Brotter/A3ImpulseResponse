@@ -459,6 +459,7 @@ def processWaveform(graphT,graphV,source):
     if source.lower() == "calscope":
         kPreZeroMean   = True
 #        kHanningWindow = True  #this cuts off a reflection pulse that is only like 35ns late
+        kDownsample    = True
         kSlice         = True
         kPostZeroMean  = True
         kZeroPad       = True
@@ -528,7 +529,7 @@ def processWaveform(graphT,graphV,source):
     if kDownsample:
         dT = graphT[1]-graphT[0]
         avgN = np.int(np.round(0.1/dT)) #0.1ns is goal (needs to be int)
-        avgY = np.zeros(len(graphV)/avgN)
+        avgY = np.zeros(int(len(graphV)/avgN))
         for i in range(0,avgN):
             avgY += graphV[i::avgN]/avgN
         avgX = graphT[::avgN]+((avgN-1)*dT/2.)
@@ -549,9 +550,9 @@ def processWaveform(graphT,graphV,source):
         #I have to zero pad out so I can select the center of the window
 #        graphT,graphV = tf.zeroPadEqual(graphT, graphV, 1024 * 3)
         graphMaxV = np.argmax(graphV)
-#        graphT,graphV = tf.hanningWindow(graphT, graphV, graphMaxV + 240, 512, slope = 1)
+        graphT,graphV = tf.hanningWindow(graphT, graphV, graphMaxV + 240, 512, slope = 1)
 #        graphT,graphV = tf.hanningWindow(graphT, graphV, graphMaxV + 252, 512, slope = 1)
-        graphV = tf.hanningTail(graphV, np.argmax(graphV)+40, 20)
+#        graphV = tf.hanningTail(graphV, np.argmax(graphV)+40, 20)
         print("Slice: length="+str(len(graphT))+" dT="+str(graphT[1]-graphT[0])+" T="+str((graphT[1]-graphT[0])*len(graphT)))
 
     #zero pad back to 1024 because I'm making my hanning window smaller (~50ns wide)
